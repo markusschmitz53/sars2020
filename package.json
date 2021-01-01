@@ -1,0 +1,29 @@
+{
+  "name": "sars2020",
+  "version": "1.0.0",
+  "description": "visualization of sars cov2 cases in germany 2020",
+  "main": "src/app.js",
+  "scripts": {
+    "build": "webpack",
+    "start": "webpack serve --port 8080"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/markusschmitz53/sars2020.git"
+  },
+  "author": "Markus Schmitz",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/markusschmitz53/sars2020/issues"
+  },
+  "homepage": "https://github.com/markusschmitz53/sars2020#readme",
+  "devDependencies": {
+    "@babylonjs/core": "^4.2.0",
+    "@babylonjs/inspector": "^4.2.0",
+    "clean-webpack-plugin": "^3.0.0",
+    "html-webpack-plugin": "^4.5.0",
+    "webpack": "^5.11.1",
+    "webpack-cli": "^4.3.1",
+    "webpack-dev-server": "^3.11.1"
+  }
+}
