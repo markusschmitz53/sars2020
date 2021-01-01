@@ -7,6 +7,7 @@ module.exports = {
     entry: path.resolve(appDirectory, "src/app.js"), //path to the main .ts file
     output: {
         filename: "js/sars2020.js", //name for the javascript file that is created/compiled in memory
+        path: path.resolve(__dirname, 'dist')
     },
     resolve: {
         extensions: [".js"],
