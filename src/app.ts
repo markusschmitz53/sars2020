@@ -10,27 +10,14 @@ import {
     HemisphericLight,
     Mesh,
     MeshBuilder,
-    StandardMaterial, Color3, HighlightLayer, FreeCamera, Camera, Color4, PolygonMeshBuilder, Vector2, VertexData
+    StandardMaterial, Color3, Camera, Color4, VertexData
 } from "@babylonjs/core";
 import {getJSON} from '../node_modules/simple-get-json/dist/index-es.js';
 import * as d3 from "d3";
 import * as d3Geo from 'd3-geo-projection';
-import {GeometryObject, Polygon} from "geojson";
 import * as earcut from "earcut"
-import { ExtendedGeometryCollection } from "d3";
+import {ExtendedGeometryCollection} from "d3";
 import {LoadingScreen} from "./LoadingScreen";
-
-export interface County {
-  type: string;
-  id: number;
-  properties: StateProperties;
-  geometry;
-}
-
-export interface StateProperties {
-    BEZ: string;
-    GEN: string;
-}
 
 export interface GeometryCollection extends ExtendedGeometryCollection {
     length: number;
@@ -38,16 +25,17 @@ export interface GeometryCollection extends ExtendedGeometryCollection {
 
 class App {
     private counties: GeometryCollection;
+    private drawnCounties;
     private radius: number;
     private scene;
     private camera;
     private geoBoundsForCounties;
     private engine;
-    private germanyGeoJson;
-    private stats;
     private performanceValueT0;
 
 	constructor() {
+	    this.drawnCounties = {};
+
         // create the canvas html element and attach it to the webpage
         var canvas = document.createElement("canvas");
         canvas.style.width = "100%";
@@ -87,7 +75,7 @@ class App {
         let dataUrl = 'https://markusschmitz.info/landkreise_deutschland.json';
 
         this.startProcess('Start: loading data');
-        engine.loadingScreen = new LoadingScreen("Loading data");
+        engine.loadingScreen = new LoadingScreen("preparing data");
         engine.displayLoadingUI();
 
         getJSON([dataUrl]).then((records) => {
@@ -106,8 +94,6 @@ class App {
             this.counties = data;
 
             this.stopProcess('End: loading data');
-            engine.hideLoadingUI();
-
             this.drawCounties();
         }, (error) => {
             // Handle any errors here
@@ -174,22 +160,33 @@ class App {
         counties = counties.features;
 
         this.stopProcess('End: projecting GeoJSON');
-        this.engine.hideLoadingUI();
 
         this.startProcess('Start: generating meshes');
-        let meshGroup = [];
-        for (let i = 0; i < counties.length; i++) {
-            let feature = counties[i];
-            let geometry = counties[i].geometry;
-            let state = feature.properties.GEN,
-            flattenedGeometry;
-console.log(feature.properties);
+        let meshGroup = [],
+        i, feature, geometry, properties, state, stateAgs, flattenedGeometry;
+        for (i = 0; i < counties.length; i++) {
+            feature = counties[i];
+            geometry = counties[i].geometry;
+            properties = feature.properties;
+
+            if (!properties || !properties.GEN || !properties.AGS) {
+                console.error(feature);
+                throw new Error('Missing properties on feature');
+            }
+            state = properties.GEN;
+            stateAgs = parseInt(properties.AGS, 10); // places 1-2 state, places 3-5 for county
+
             if (feature.geometry.type === 'MultiPolygon') {
                 flattenedGeometry = geometry.coordinates.map((coord, i) => {
-                    return {...earcut.flatten(coord), stateAbbr: `${state}-${i}`};
+                    return {...earcut.flatten(coord), stateAgs: stateAgs, id: `${state}-${i}`, stateLabel: state};
                 });
             } else {
-                flattenedGeometry = {...earcut.flatten(geometry.coordinates), stateAbbr: `${state}-0`};
+                flattenedGeometry = {
+                    ...earcut.flatten(geometry.coordinates),
+                    stateAgs: stateAgs,
+                    id: `${state}-0`,
+                    stateLabel: state
+                };
             }
 
             if (!flattenedGeometry) {
@@ -211,20 +208,43 @@ console.log(feature.properties);
                 extractionResult.push(this.extractPositionsAndIndexes(flattenedGeometry));
             }
 
+            let countyMeshgroup = [],
+            countyAgs, countyLabel;
             extractionResult.forEach((extractedData) => {
                 if (extractedData && extractedData.indices && extractedData.indices.length) {
                     let mesh = this.getCountyMesh(extractedData);
+                    countyAgs = extractedData.stateAgs;
+                    countyLabel = extractedData.stateLabel;
+                    this.drawnCounties.stateAgs
                     if (mesh) {
                         meshGroup.push(mesh);
+                        countyMeshgroup.push(mesh);
                     }
                 } else {
                     console.error('missing extracted data for: ' + state)
-                    console.log(extractedData);
                 }
             });
+
+            if (countyAgs) {
+                let meshGroupClone = [];
+                for (let i = 0; i < countyMeshgroup.length; i++) {
+                    meshGroupClone.push(countyMeshgroup[i].clone("clone"));
+                }
+                let mergedCountyMesh = Mesh.MergeMeshes(meshGroupClone, true, true);
+                for (let k = meshGroupClone.length; k > 0; k--) {
+                    meshGroupClone[k - 1].dispose();
+                }
+
+                let {boundingBox} = mergedCountyMesh.getBoundingInfo(),
+                center = boundingBox.centerWorld;
+                this.drawnCounties[countyAgs] = {
+                    county: countyLabel,
+                    center: center
+                }
+                this.drawSphere(new Vector3(center.x, center.y, -4));
+            }
         }
 
-        this.stopProcess('End: generating meshes');
         console.info('drawing ' + counties.length + ' counties as ' + meshGroup.length + ' meshes');
 
         let meshGroupClone = [];
@@ -243,6 +263,9 @@ console.log(feature.properties);
 
         let {boundingBox} = mergedMesh.getBoundingInfo();
         mergedMesh.dispose();
+
+        this.stopProcess('End: generating meshes');
+        this.engine.hideLoadingUI();
 
         // get min and max boundaries
         let minX = boundingBox.minimumWorld.x;
@@ -282,7 +305,9 @@ console.log(feature.properties);
 
         return {
             positions: coordinates,
-            indices
+            indices,
+            stateLabel: _geometry.stateLabel,
+            stateAgs: _geometry.stateAgs
         };
     }
 
@@ -321,6 +346,20 @@ console.log(feature.properties);
 	        throw new Error('missing coroners');
         }
         const polygon = MeshBuilder.CreatePolygon("poly", _corners);
+    }
+
+    drawSphere(_positionVector: Vector3) {
+        const sphere = MeshBuilder.CreateSphere("sphere", {
+            diameter: 0.5
+        });
+        let mat = new StandardMaterial(`spheremat`, this.scene);
+        let randomColor = Color3.White();
+        mat.alpha = 0.75;
+        mat.diffuseColor = randomColor;
+        mat.emissiveColor = randomColor;
+        sphere.material = mat;
+
+        sphere.position = _positionVector;
     }
 }
 new App();
