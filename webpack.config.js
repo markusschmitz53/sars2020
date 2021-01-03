@@ -1,10 +1,11 @@
 const path = require("path");
 const fs = require("fs");
+const webpack = require("webpack");
 const HtmlWebpackPlugin = require("html-webpack-plugin");
 const {CleanWebpackPlugin} = require("clean-webpack-plugin");
 const appDirectory = fs.realpathSync(process.cwd());
 module.exports = {
-    entry: path.resolve(appDirectory, "src/app.js"), //path to the main .ts file
+    entry: path.resolve(appDirectory, "src/app.ts"), //path to the main .ts file
     output: {
         filename: "js/sars2020.js", //name for the javascript file that is created/compiled in memory
         path: path.resolve(__dirname, 'dist')
@@ -22,6 +23,11 @@ module.exports = {
     },
     module : {
         rules: [
+            {
+                test   : /\.tsx?$/,
+                use    : 'ts-loader',
+                exclude: /node_modules/,
+            },
             {
                 test: /\.s[ac]ss$/i,
                 use : [
@@ -41,6 +47,9 @@ module.exports = {
                                   template: path.resolve(appDirectory, "public/index.html"),
                               }),
         new CleanWebpackPlugin(),
+        new webpack.ProvidePlugin({
+            'earcut': 'earcut'
+        }),
     ],
     mode: "development"
 };
