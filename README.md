@@ -8,3 +8,9 @@ http://opendatalab.de/projects/geojson-utilities/
 
 RKI Sum data:
 https://opendata.arcgis.com/datasets/9644cad183f042e79fb6ad00eadc4ecf_0.geojson
+
+https://observablehq.com/@scarysize/finding-random-points-in-a-polygon
+
+cases start 28.01.2020
+
+AGS = Allgemeiner Gemeinde Schlüssel
