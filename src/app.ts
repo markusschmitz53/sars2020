@@ -37,6 +37,7 @@ class App {
     private drawnCounties: object;
     private utilities: Utilities;
     private engine: Engine;
+    private totalCasesCount = 0;
 
     private readonly MAX_RANDOM_POINT_ITERATIONS = 500;
     private readonly CASE_DRAW_ITERATION_MIN_TIME = 200;
@@ -55,6 +56,9 @@ class App {
 
         this.engine = new Engine(canvas, true);
         this.scene = new Scene(this.engine);
+
+        document.getElementsByTagName('canvas')[0].style.display = 'none';
+        document.getElementsByTagName('canvas')[0].style.opacity = '0';
 
         window.addEventListener('resize', () => {
             this.engine.resize();
@@ -84,38 +88,12 @@ class App {
         this.camera.minZ = 0;
         this.camera.attachControl(canvas, false);
 
-        this.engine.loadingScreen = new LoadingScreen('');
-        this.engine.displayLoadingUI();
+        this.engine.loadingScreen = new LoadingScreen('preparing data');
 
         this.utilities.startProcess('Start: loading counties');
 
-        getJSON([this.countiesDataUrl]).then((records) => {
-            if (!records) {
-                throw new Error('no county records');
-            } else if (!records.length || !records[0].features) {
-                throw new Error('wrong data structure for counties');
-            }
-
-            this.counties = records.pop();
-
-            this.utilities.stopProcess('End: loading counties');
-
-            this.drawCounties();
-        }, (error) => {
-            console.error('error', error);
-        });
-
-        // listen for space key
-        this.scene.onKeyboardObservable.add((kbInfo) => {
-            switch (kbInfo.type) {
-                case KeyboardEventTypes.KEYDOWN:
-                    switch (kbInfo.event.key) {
-                        case ' ':
-                            this.loadAndProcessCovidCases();
-                    }
-                    break;
-            }
-        });
+       // this.start();
+        this.loadCountiesAndStartDrawing();
 
         // hide/show the Inspector
         window.addEventListener('keydown', (_event) => {
@@ -135,9 +113,104 @@ class App {
         });
     }
 
+    showMessage1() {
+        this.utilities.fadeIn(document.getElementById('message1'), () => {
+            setTimeout(() => {
+                this.utilities.fadeOut(document.getElementById('message1'), () => {
+                    this.showMessage2();
+                });
+            }, 2000);
+        });
+    }
+
+    showMessage2() {
+        this.utilities.fadeIn(document.getElementById('message2'), () => {
+             setTimeout(() => {
+                 this.utilities.fadeOut(document.getElementById('message2'), () => {
+                     this.showMessage3();
+                 });
+             }, 2000);
+        });
+    }
+
+    showMessage3() {
+        document.body.onkeyup = function (e) {
+            if (e.keyCode == 32) {
+                document.getElementById('message3').classList.remove('animate-flicker');
+                let op = 1,
+                    element = document.getElementById('message3');
+                let timer = setInterval(function () {
+                    if (op <= 0.05) {
+                        clearInterval(timer);
+                        element.style.display = 'none';
+                        (window as any).app.loadCountiesAndStartDrawing();
+                    }
+                    element.style.opacity = '' + op;
+                    element.style.filter = 'alpha(opacity=' + op * 100 + ")";
+                    op -= op * 0.025;
+                }, 10);
+            }
+        }
+
+        this.utilities.fadeIn(document.getElementById('message3'), () => {
+             setTimeout(() => {
+                 document.getElementById('message3').classList.add('animate-flicker');
+             }, 1000);
+        });
+    }
+
+    start() {
+        setTimeout(() => {
+            this.showMessage1();
+        }, 750);
+    }
+
+    loadCountiesAndStartDrawing() {
+        this.engine.displayLoadingUI();
+        getJSON([this.countiesDataUrl]).then((records) => {
+            if (!records) {
+                throw new Error('no county records');
+            } else if (!records.length || !records[0].features) {
+                throw new Error('wrong data structure for counties');
+            }
+
+            this.counties = records.pop();
+
+            this.utilities.stopProcess('End: loading counties');
+
+            this.drawCounties();
+        }, (error) => {
+            console.error('error', error);
+        });
+    }
+
+    cameraTarget: Vector3;
+
     cameraTracking() {
-        setTimeout(() => this.camera.spinTo('beta', 2.62, 20), 0);
-        setTimeout(() => this.camera.spinTo('radius', 149, 20), 2000);
+        setTimeout(() => {
+            this.camera.spinTo('beta', 2.62, 20);
+        }, 0);
+        setTimeout(async () => {
+            this.cameraTarget = this.camera.getTarget().clone();
+            this.cameraTarget.y = this.cameraTarget.y - 15;
+            let timer = setInterval(() => {
+                if (this.camera.getTarget().y < (this.cameraTarget.y + 1)) {
+                    clearInterval(timer);
+                }
+                this.camera.setTarget(Vector3.Lerp(this.camera.getTarget(), this.cameraTarget, 0.01));
+            }, 10);
+        }, 0);
+        setTimeout(() => {
+            this.camera.spinTo('radius', 135, 20);
+        }, 5000);
+    }
+
+    cameraMovement() {
+        if (!this.camera) {
+            return;
+        }
+
+        this.camera.setTarget(Vector3.Lerp(this.camera.getTarget(), this.cameraTarget, 0.001));
     }
 
     loadAndProcessCovidCases() {
@@ -157,12 +230,33 @@ class App {
                 throw new Error('missing covid case features');
             }
 
-            this.cameraTracking();
-
+            this.totalCasesCount = 0;
             this.covidCases = this.utilities.groupCasesByDate(data);
             this.utilities.stopProcess('End: loading cases');
 
-            this.drawCovidCases();
+            this.engine.hideLoadingUI();
+
+            let currentDayDomElement = document.getElementById('currentDay');
+            if (!currentDayDomElement) {
+                currentDayDomElement = document.createElement('div');
+                currentDayDomElement.setAttribute('id', 'currentDay');
+                currentDayDomElement.style.display = 'none';
+                currentDayDomElement.style.opacity = '0';
+                document.body.appendChild(currentDayDomElement);
+                currentDayDomElement.innerHTML = '01.01.2020<br><span class="small">0 cumulative cases</span>';
+                this.utilities.fadeIn(document.getElementsByTagName('canvas')[0], () => {
+                    setTimeout(() => {
+                        this.cameraTracking();
+                    }, 4000);
+                    setTimeout(() => {
+                        this.drawCovidCases();
+                    }, 8000);
+                });
+                setTimeout(() => {
+                    this.utilities.fadeIn(currentDayDomElement, () => {
+                    });
+                }, 2000);
+            }
         }, (error) => {
             console.error('error', error);
         });
@@ -189,14 +283,14 @@ class App {
         return countyKey;
     }
 
-    drawCovidCasesForDay(_covidCases) {
+    drawCovidCasesForDay(_covidCases, _date) {
         for (let i = 0; i < _covidCases.length; i++) {
-            this.drawCovidCase(_covidCases[i]);
+            this.drawCovidCase(_covidCases[i], _date);
         }
         return true;
     }
 
-    drawCovidCase(_covidCase) {
+    drawCovidCase(_covidCase, _date) {
         if (!_covidCase || !_covidCase.properties || !_covidCase.properties.IdLandkreis) {
             console.error(_covidCase);
             throw new Error('Wrong structure for covid case');
@@ -218,7 +312,18 @@ class App {
             return;
         }
 
+        this.totalCasesCount += cases;
         particleSystem.emitter = randomPoints[Math.floor((Math.random() * randomPoints.length))];
+        if (_date > '2020/03/06') {
+            particleSystem.minSize = 0.15;
+            particleSystem.maxSize = 0.3;
+        } else if(_date > '2020/03/01')  {
+            particleSystem.minSize = 0.3;
+            particleSystem.maxSize = 0.5;
+        } else {
+            particleSystem.minSize = 0.5;
+            particleSystem.maxSize = 0.6;
+        }
         particleSystem.manualEmitCount = cases;
     }
 
@@ -228,18 +333,13 @@ class App {
         let currentDayDomElement = document.getElementById('currentDay'),
             covidCases = this.covidCases,
             timeMax = this.CASE_DRAW_ITERATION_MIN_TIME,
-            timestamp, executionTime, date;
-
-        if (!currentDayDomElement) {
-            currentDayDomElement = document.createElement('div');
-            currentDayDomElement.setAttribute('id', 'currentDay');
-            document.body.appendChild(currentDayDomElement);
-        }
+            timestamp, executionTime, date, totalCasesFormatted;
 
         for (date in covidCases) {
             timestamp = performance.now();
-            currentDayDomElement.innerHTML = date;
-            this.drawCovidCasesForDay(covidCases[date]);
+            totalCasesFormatted = this.totalCasesCount.toString().replace(/(\d)(?=(\d\d\d)+(?!\d))/g, "$1.");
+            currentDayDomElement.innerHTML = this.utilities.formatDate(date) + '<br><span class="small">' + totalCasesFormatted + ' cumulative cases</span>';
+            this.drawCovidCasesForDay(covidCases[date], date);
             executionTime = performance.now() - timestamp;
 
             // slow down the process to show each day long enough
@@ -249,6 +349,17 @@ class App {
         }
         console.info('Max execution time for particle drawing: ' + timeMax);
         this.utilities.stopProcess('End: drawing cases');
+        currentDayDomElement.innerHTML = this.utilities.formatDate(date) + '<br><span class="small">1.891.581 cumulative cases</span>';
+        this.showOutro();
+    }
+
+    showOutro() {
+        setTimeout(() => {
+            this.utilities.fadeOut(document.getElementById('currentDay'), () => {
+            });
+            this.utilities.fadeOut(document.getElementsByTagName('canvas')[0], () => {
+            });
+        }, 5000);
     }
 
     prepareCountyData(_counties) {
@@ -374,9 +485,7 @@ class App {
             boundingBox = meshgroupData.boundingBox;
 
         this.utilities.stopProcess('End: generating meshes');
-        this.engine.hideLoadingUI();
 
-        // get min and max boundaries
         let minX = boundingBox.minimumWorld.x;
         let minY = boundingBox.minimumWorld.y;
         let maxX = boundingBox.maximumWorld.x;
@@ -386,9 +495,9 @@ class App {
         let fov = this.camera.fov;
         let aspectRatio = this.engine.getAspectRatio(this.camera);
         let distance = (height / 1.75 / aspectRatio) / Math.tan(fov / 2);
-
         this.camera.setTarget(centerWorld);
         this.camera.setPosition(new Vector3(centerWorld.x, centerWorld.y, centerWorld.z - distance));
+        this.loadAndProcessCovidCases();
     }
 
     getMeshgroupBoundingBox(_meshgroup: Mesh[]) {
@@ -532,7 +641,7 @@ class App {
 
         randomColor = Color3.White();
         customMesh.enableEdgesRendering();
-        customMesh.edgesWidth = 10.0;
+        customMesh.edgesWidth = 20.0;
         customMesh.edgesColor = new Color4(randomColor.r, randomColor.g, randomColor.b, 0.75);
 
         customMesh.material = material;
@@ -542,5 +651,5 @@ class App {
 }
 
 window.onload = function () {
-    new App();
+    (window as any).app = new App();
 };

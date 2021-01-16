@@ -8,14 +8,14 @@ export class LoadingScreen implements ILoadingScreen {
   }
 
   public displayLoadingUI() {
-    if (document.getElementById("loadingScreenDiv")) {
-      // Do not add a loading screen if there is already one
-      document.getElementById("loadingScreenDiv").style.display = "initial";
+    if (document.getElementById('loadingScreenDiv')) {
+      document.getElementById('loadingScreenDiv').style.display = 'block';
       return;
     }
-    this._loadingDiv = document.createElement("div");
-    this._loadingDiv.id = "loadingScreenDiv";
+    this._loadingDiv = document.createElement('div');
+    this._loadingDiv.id = 'loadingScreenDiv';
     this._loadingDiv.innerHTML = this.loadingUIText;
+    this._loadingDiv.style.display = 'block';
 
     /*    this._resizeLoadingUI();
         window.addEventListener("resize", this._resizeLoadingUI);*/
@@ -23,6 +23,6 @@ export class LoadingScreen implements ILoadingScreen {
   }
 
   public hideLoadingUI() {
-    document.getElementById("loadingScreenDiv").style.display = "none";
+    document.getElementById('loadingScreenDiv').style.display = 'none';
   }
 }

@@ -15,10 +15,18 @@ export interface GeometryCollection extends ExtendedGeometryCollection {
 }
 
 export class CustomCamera extends ArcRotateCamera {
+
+    /**
+     *
+     * @param whichprop
+     * @param targetval
+     * @param speed
+     * @return Animatable
+     */
     spinTo(whichprop, targetval, speed) {
         let ease = new CubicEase();
         ease.setEasingMode(EasingFunction.EASINGMODE_EASEINOUT);
-        Animation.CreateAndStartAnimation('at4', this, whichprop, speed, 120, this[whichprop], targetval, 0, ease);
+        return Animation.CreateAndStartAnimation('at4', this, whichprop, speed, 120, this[whichprop], targetval, 0, ease);
     }
 }
 

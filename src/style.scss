@@ -1,41 +1,76 @@
-@import url('https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@200&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Amiri&display=swap');
 
 html, body {
     width: 100%;
     height:100%;
     margin: 0px;
     paddin: 0px;
+    overflow: hidden;
+}
+
+@keyframes flickerAnimation {
+    0% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.75;
+    }
+    100% {
+        opacity: 1;
+    }
+}
+.animate-flicker {
+    animation: flickerAnimation 2.5s infinite;
 }
 
 body {
-    font-family: 'Nunito Sans', sans-serif;
-    font-size: 14pt;
+    font-family: 'Amiri', sans-serif;
+    font-size: 20pt;
+    font-weight: 400;
+    font-style: italic;
+    letter-spacing: 1px;
     background-color: #000;
     color: #FFF;
+    text-align: center;
+}
+
+body p {
+    line-height: 100vh;
+    margin-top: 0;
 }
 
 canvas {
     outline: none;
     position: absolute;
-    left: 22vw;
-    width: 1000px;
-    height: 900px;
+    top: 0;
+    left: calc(50vw - 50vh);
+    height: 99vh;
+    width: 99vh;
     display: block;
     z-index: 100;
 }
 
 #loadingScreenDiv {
+    display: none;
     position: absolute;
     width: 100vw;
     height: 100vh;
     line-height: 100vh;
     z-index: 200;
-    background-color: #111;
+    background-color: #000;
     text-align: center;
 }
 
 #currentDay {
     position: absolute;
     z-index: 400;
-    padding: 5vw;
+    padding-top: 21vh;
+    padding-left: 15vw;
+    text-align: left;
+    line-height: 20pt;
+    cursor: help;
+}
+
+.small {
+    font-size: 14pt;
 }

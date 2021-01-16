@@ -21,6 +21,43 @@ export class Utilities {
             .center([centerX, centerY]);
     }
 
+    formatDate(_date) {
+        let year = _date.substr(0, 4),
+            month = _date.substr(5,2),
+            day = _date.substr(8,2);
+
+        return day + '.' + month + '.' + year;
+    }
+
+    fadeOut(element, callback) {
+        let op = 1;  // initial opacity
+        let timer = setInterval(function () {
+            if (op <= 0.05) {
+                clearInterval(timer);
+                element.style.display = 'none';
+                callback();
+            }
+            element.style.opacity = op;
+            element.style.filter = 'alpha(opacity=' + op * 100 + ")";
+            op -= op * 0.025;
+        }, 10);
+    }
+
+    fadeIn(element, callback) {
+        let op = 0.01;  // initial opacity
+        element.style.display = 'block';
+        let timer = setInterval(function () {
+            if (op >= 1) {
+                clearInterval(timer);
+                callback();
+            }
+
+            element.style.setProperty('opacity', op);
+            element.style.setProperty('filter', 'alpha(opacity=' + op * 100 + ")");
+            op += op * 0.025;
+        }, 10);
+    }
+
     sleep(ms: number) {
         return new Promise(resolve => {
                 setTimeout(resolve, ms);
@@ -35,9 +72,10 @@ export class Utilities {
         for (let i = 0; i < _data.length; i++) {
             feature = _data[i];
             date = feature.properties.Meldedatum.substring(0, 10);
-            if (date >= '2021-01-01') {
+            if (date >= '2021/01/01' || date < '2020/01/28') {
                 continue;
             }
+
             if (!sortedData[date]) {
                 sortedData[date] = [];
             }
