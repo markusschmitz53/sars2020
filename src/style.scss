@@ -13,7 +13,7 @@ html, body {
         opacity: 1;
     }
     50% {
-        opacity: 0.75;
+        opacity: 0.6;
     }
     100% {
         opacity: 1;
@@ -21,6 +21,14 @@ html, body {
 }
 .animate-flicker {
     animation: flickerAnimation 2.5s infinite;
+}
+
+.stop-animation {
+    -webkit-animation-iteration-count: 1;
+    -moz-animation-iteration-count: 1;
+    -ms-animation-iteration-count: 1;
+    -o-animation-iteration-count: 1;
+    animation-iteration-count: 1;
 }
 
 body {
@@ -65,7 +73,7 @@ canvas {
     position: absolute;
     z-index: 400;
     padding-top: 21vh;
-    padding-left: 15vw;
+    padding-left: calc(25vw - 25vh);
     text-align: left;
     line-height: 20pt;
     cursor: help;

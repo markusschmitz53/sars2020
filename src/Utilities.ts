@@ -65,15 +65,20 @@ export class Utilities {
         );
     }
 
-    groupCasesByDate(_data) {
+    fixCasesAndGroupByDate(_data) {
         let sortedData = [],
             date, feature;
 
         for (let i = 0; i < _data.length; i++) {
             feature = _data[i];
             date = feature.properties.Meldedatum.substring(0, 10);
-            if (date >= '2021/01/01' || date < '2020/01/28') {
+            if (date >= '2021/01/01') {
                 continue;
+            }
+
+            // fix wrong data
+            if (date < '2020/01/28') {
+                feature.properties.AnzahlFall = 0;
             }
 
             if (!sortedData[date]) {
