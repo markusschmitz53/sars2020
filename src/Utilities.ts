@@ -4,6 +4,7 @@ export class Utilities {
     private performanceValueT0;
 
     constructor() {
+        this.performanceValueT0 = null;
     }
 
     /**
@@ -97,12 +98,13 @@ export class Utilities {
 
     startProcess(_hint) {
         console.info(_hint);
-        this.performanceValueT0 = performance.now();
+        return performance.now();
     }
 
-    stopProcess(_hint) {
-        let timeValue = ((performance.now() - this.performanceValueT0) / 1000).toFixed(1);
-        _hint += ' (' + timeValue + 's)';
-        console.info(_hint);
+    stopProcess(performanceValueT0, _hint) {
+        let timeDifference = ((performance.now() - performanceValueT0) / 1000).toFixed(1);
+        console.info(_hint + ' (' + timeDifference + 's)');
+
+        return timeDifference;
     }
 }

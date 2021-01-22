@@ -25,6 +25,7 @@ import * as earcut from 'earcut'
 import {LoadingScreen} from './LoadingScreen';
 import {Utilities} from './Utilities';
 import {CustomCamera, GeometryCollection, MeshgroupData} from './Types';
+import {anaglyphPixelShader} from '@babylonjs/core/Shaders/anaglyph.fragment';
 
 class App {
     private readonly covidDataUrl: string;
@@ -34,10 +35,13 @@ class App {
     private readonly camera: CustomCamera;
     private counties: GeometryCollection;
     private covidCases: any;
-    private drawnCounties: object;
+    private drawnCounties: any;
     private utilities: Utilities;
     private engine: Engine;
     private totalCasesCount = 0;
+    private meshesOfAllCounties: any;
+    private numberOfLoadedCounties: any;
+    private elapsedTimeForCountyPreparation: any;
 
     private readonly MAX_RANDOM_POINT_ITERATIONS = 500;
     private readonly CASE_DRAW_ITERATION_MIN_TIME = 200;
@@ -45,9 +49,20 @@ class App {
     private readonly PARTICLE_SYSTEM_CAPACITY = 100;
 
     constructor() {
+        if (!window || !window.innerWidth || !window.innerHeight || !document) {
+            alert('oh oh, something\'s wrong here :-/\nYou could let me know that this happened, so I can fix the issue: \nhello@markusschmitz.info');
+            throw new Error('global properties are undefined');
+        }
+
+        this.checkMinimumWindowSize();
+
+        console.info('%ccode and concept by Markus Schmitz. Check ' +
+            'https://github.com/markusschmitz53/sars2020 for details about the project.', 'padding: 1rem; background: #000; color: #FFF');
+
         this.covidDataUrl = 'https://opendata.arcgis.com/datasets/9644cad183f042e79fb6ad00eadc4ecf_0.geojson';
         this.countiesDataUrl = 'https://markusschmitz.info/landkreise_deutschland.json';
         this.drawnCounties = {};
+        this.elapsedTimeForCountyPreparation = 0;
         this.utilities = new Utilities();
 
         let canvas = document.createElement("canvas");
@@ -61,7 +76,10 @@ class App {
         document.getElementsByTagName('canvas')[0].style.opacity = '0';
 
         window.addEventListener('resize', () => {
-            this.engine.resize();
+            this.checkMinimumWindowSize();
+            if (this.engine) {
+                this.engine.resize();
+            }
         });
 
         this.scene.clearColor = new Color4(0, 0, 0, 1);
@@ -69,7 +87,7 @@ class App {
 
         let light = new HemisphericLight(
             'light1',
-            new Vector3(0, 1, 0),
+            new Vector3(0, 1, -0.08),
             this.scene
         );
         light.intensity = 1;
@@ -90,10 +108,7 @@ class App {
 
         this.engine.loadingScreen = new LoadingScreen('preparing data');
 
-        this.utilities.startProcess('Start: loading counties');
-
-       // this.start();
-        this.loadCountiesAndStartDrawing();
+        this.start();
 
         // hide/show the Inspector
         window.addEventListener('keydown', (_event) => {
@@ -114,61 +129,47 @@ class App {
     }
 
     showMessage1() {
-        this.utilities.fadeIn(document.getElementById('message1'), () => {
-            setTimeout(() => {
-                this.utilities.fadeOut(document.getElementById('message1'), () => {
-                    this.showMessage2();
-                });
-            }, 2000);
-        });
+        setTimeout(() => {
+            this.utilities.fadeIn(document.getElementById('message1'), () => {
+                setTimeout(() => {
+                    this.utilities.fadeOut(document.getElementById('message1'), () => {
+                        this.showMessage2();
+                    });
+                }, 4000);
+            });
+        }, 500);
     }
 
     showMessage2() {
         this.utilities.fadeIn(document.getElementById('message2'), () => {
              setTimeout(() => {
                  this.utilities.fadeOut(document.getElementById('message2'), () => {
-                     this.showMessage3();
+                     setTimeout(() => {
+                         (window as any).app.drawCountyMeshes();
+                     }, 1000);
                  });
-             }, 2000);
+             }, 4000);
         });
     }
 
-    showMessage3() {
-        document.body.onkeyup = function (e) {
-            if (e.keyCode == 32) {
-                document.getElementById('message3').classList.add('stop-animation');
-                document.getElementById('message3').classList.remove('animate-flicker');
-                let op = 1,
-                    element = document.getElementById('message3');
-                let timer = setInterval(function () {
-                    if (op <= 0.05) {
-                        clearInterval(timer);
-                        element.style.display = 'none';
-                        element.classList.remove('stop-animation');
-                        (window as any).app.loadCountiesAndStartDrawing();
-                    }
-                    element.style.opacity = '' + op;
-                    element.style.filter = 'alpha(opacity=' + op * 100 + ")";
-                    op -= op * 0.025;
-                }, 10);
-            }
+    checkMinimumWindowSize() {
+        if (window.innerWidth < 1100 || window.innerHeight < 700) {
+            alert('I\'m sorry but your screen needs at least 700 pixel high and 1100 pixel wide to display the animation on this page.');
+            throw new Error('screen is too small');
         }
-
-        this.utilities.fadeIn(document.getElementById('message3'), () => {
-             setTimeout(() => {
-                 document.getElementById('message3').classList.add('animate-flicker');
-             }, 1000);
-        });
     }
 
     start() {
-        setTimeout(() => {
-            this.showMessage1();
-        }, 750);
+        this.showMessage1();
+        this.loadCounties();
+        this.loadAndProcessCovidCases();
     }
 
-    loadCountiesAndStartDrawing() {
-        this.engine.displayLoadingUI();
+    loadCounties() {
+        //this.engine.displayLoadingUI();
+
+        let performanceValueT0 = this.utilities.startProcess('Start: loading counties');
+
         getJSON([this.countiesDataUrl]).then((records) => {
             if (!records) {
                 throw new Error('no county records');
@@ -177,10 +178,9 @@ class App {
             }
 
             this.counties = records.pop();
+            this.utilities.stopProcess(performanceValueT0, 'End: loading counties');
 
-            this.utilities.stopProcess('End: loading counties');
-
-            this.drawCounties();
+            this.prepareCountyMeshes();
         }, (error) => {
             console.error('error', error);
         });
@@ -216,7 +216,7 @@ class App {
     }
 
     loadAndProcessCovidCases() {
-        this.utilities.startProcess('Start: loading cases');
+        let performanceValueT0 = this.utilities.startProcess('Start: loading cases');
         getJSON([this.covidDataUrl]).then((records: GeometryCollection) => {
             if (!records) {
                 throw new Error('failed to load covid records');
@@ -233,10 +233,7 @@ class App {
             }
 
             this.covidCases = this.utilities.fixCasesAndGroupByDate(data);
-            this.utilities.stopProcess('End: loading cases');
-
-            this.engine.hideLoadingUI();
-            this.startDrawingCases();
+            this.utilities.stopProcess(performanceValueT0, 'End: loading cases');
         }, (error) => {
             console.error('error', error);
         });
@@ -342,7 +339,7 @@ class App {
     }
 
     async drawCovidCases() {
-        this.utilities.startProcess('Start: drawing cases');
+        let performanceValueT0 = this.utilities.startProcess('Start: drawing cases');
 
         let currentDayDomElement = document.getElementById('currentDay'),
             covidCases = this.covidCases,
@@ -362,9 +359,9 @@ class App {
             }
         }
         console.info('Max execution time for particle drawing: ' + timeMax);
-        this.utilities.stopProcess('End: drawing cases');
+        this.utilities.stopProcess(performanceValueT0, 'End: drawing cases');
         currentDayDomElement.innerHTML = this.utilities.formatDate(date) + '<br><span class="small">1.891.581 cumulative cases</span>';
-        this.showOutro();
+       // this.showOutro();
     }
 
     showOutro() {
@@ -380,14 +377,14 @@ class App {
                             if (e.keyCode == 32) {
                                 messageElement.classList.add('stop-animation');
                                 setTimeout(() => {
-                                    messageElement.classList.remove('animate-flicker');r
+                                    messageElement.classList.remove('animate-flicker');
                                     (window as any).app.utilities.fadeOut(messageElement, () => {
                                         messageElement.classList.remove('stop-animation');
                                     });
-                                }, 500);
+                                }, 200);
                                 setTimeout(() => {
                                     (window as any).app.startDrawingCases(true);
-                                }, 1000);
+                                }, 1500);
                                 document.body.onkeyup = null;
                             }
                         }
@@ -398,7 +395,7 @@ class App {
     }
 
     prepareCountyData(_counties) {
-        this.utilities.startProcess('Start: projecting GeoJSON');
+        let performanceValueT0 = this.utilities.startProcess('Start: projecting GeoJSON');
 
         // project the lat and long values from GeoJSON to pixel values
         let counties = d3Geo.geoProject(_counties, this.utilities.getProjection(d3.geoBounds(_counties)));
@@ -406,27 +403,30 @@ class App {
         // projected values are in the wrong orientation for displaying on canvas so we flip them
         counties = d3Geo.geoProject(counties, d3.geoIdentity().reflectY(true));
 
-        this.utilities.stopProcess('End: projecting GeoJSON');
+        this.utilities.stopProcess(performanceValueT0, 'End: projecting GeoJSON');
 
-        return counties;
+        return counties.features;
     }
 
-    drawCounties() {
+    prepareCountyMeshes() {
         if (!this.counties) {
             throw new Error('Missing counties');
         }
 
-        let counties = this.prepareCountyData(this.counties);
-        counties = counties.features;
+        let performanceValueT0 = this.utilities.startProcess('Start: generating meshes');
 
-        this.utilities.startProcess('Start: generating meshes');
-        let meshGroup = [],
-            feature, geometry, properties, countyLabel, countyAgs, flattenedGeometry;
+        let countiesProjectedGeoJsonData = this.prepareCountyData(this.counties),
+        positionsAndIndicesForCounty, countyMeshes, feature, geometry, properties, countyLabel, countyAgs, flattenedGeometry;
 
-        for (let i = 0; i < counties.length; i++) {
-            feature = counties[i];
+        this.meshesOfAllCounties = [];
+        this.numberOfLoadedCounties = countiesProjectedGeoJsonData.length;
+
+        for (let i = 0; i < countiesProjectedGeoJsonData.length; i++) {
+            feature = countiesProjectedGeoJsonData[i];
             geometry = feature.geometry;
             properties = feature.properties;
+            positionsAndIndicesForCounty = [];
+            countyMeshes = [];
 
             if (!geometry || !properties || !properties.GEN || !properties.AGS) {
                 console.error(feature);
@@ -458,46 +458,42 @@ class App {
                 throw new Error('Missing flattened geometry');
             }
 
-            let extractionResult = [];
-
             // some geometries are MultiPolygons, some just Polygons
             if (Array.isArray(flattenedGeometry)) {
                 flattenedGeometry.forEach((_geometry) => {
-                    let tempExtractedData = this.extractPositionsAndIndexes(_geometry);
+                    let tempExtractedData = this.extractPositionsAndIndices(_geometry);
 
                     if (!tempExtractedData.indices || !tempExtractedData.indices.length) {
-                        console.log('Failed to extract data')
+                        console.error('Failed to extract data')
                         return;
                     }
 
-                    extractionResult.push(tempExtractedData);
+                    positionsAndIndicesForCounty.push(tempExtractedData);
                 });
             } else {
-                extractionResult.push(this.extractPositionsAndIndexes(flattenedGeometry));
+                positionsAndIndicesForCounty.push(this.extractPositionsAndIndices(flattenedGeometry));
             }
-
-            let countyMeshgroup = [];
 
             countyAgs = null;
             countyLabel = '';
 
             // iterate over all vertices of the current county and generate meshes
-            extractionResult.forEach((extractedData) => {
+            positionsAndIndicesForCounty.forEach((extractedData) => {
                 countyAgs = null;
                 let mesh = this.getCountyMesh(extractedData);
                 if (mesh) {
                     // countyAgs is the same for all elements of a MultiPolygon
                     countyAgs = extractedData.countyAgs;
                     countyLabel = extractedData.countyLabel;
-                    meshGroup.push(mesh);
-                    countyMeshgroup.push(mesh);
+                    countyMeshes.push(mesh);
+                    this.meshesOfAllCounties.push(mesh);
                 } else {
                     throw new Error('Failed to generate county mesh');
                 }
             });
 
             if (countyAgs) {
-                let meshgroupData = this.getMeshgroupBoundingBox(countyMeshgroup),
+                let meshgroupData = this.getMeshgroupBoundingBox(countyMeshes),
                     boundingBox = meshgroupData.boundingBox,
                     randomPoints = meshgroupData.randomPoints,
                     center = boundingBox.centerWorld;
@@ -507,6 +503,7 @@ class App {
                     center: center,
                     randomPoints: randomPoints,
                     properties: properties,
+                    countyMeshes: countyMeshes,
                     particleSystem: this.drawParticleSystem(center.x, center.y)
                 }
             } else {
@@ -514,12 +511,34 @@ class App {
             }
         }
 
-        console.info('drawing ' + counties.length + ' counties as ' + meshGroup.length + ' meshes');
+        this.elapsedTimeForCountyPreparation = this.utilities.stopProcess(performanceValueT0, 'End: generating meshes');
+    }
 
-        let meshgroupData = this.getMeshgroupBoundingBox(meshGroup),
-            boundingBox = meshgroupData.boundingBox;
+    drawCountyMeshes() {
+        if (true || this.elapsedTimeForCountyPreparation === 0 || this.elapsedTimeForCountyPreparation > '6.0') {
+            alert('I hate to break it to you but while you were sitting there all excited I was doing some calculations and ... it\'s not looking good.' +
+                '\nIt could be that your hardware is too slow or I\'m bad a math, we\'ll never know. Let\'s just call it unfortunate circumstances for now.' +
+                '\n\nAs a matter of fact, it took over ' + this.elapsedTimeForCountyPreparation + ' seconds to generate some data in the background and that\'s just too long.' +
+                '\n\nIf your computer is running on battery try plugging it into a power source or ask your neighbor to use their computer 8-)')
+            throw new Error('data preparation took too long (' + this.elapsedTimeForCountyPreparation + 's)');
+        }
 
-        this.utilities.stopProcess('End: generating meshes');
+        let performanceValueT0 = this.utilities.startProcess('Start: drawing meshes');
+
+        console.info('drawing ' + this.numberOfLoadedCounties + ' counties as ' + this.meshesOfAllCounties.length + ' meshes');
+        let meshgroupData = this.getMeshgroupBoundingBox(this.meshesOfAllCounties),
+            boundingBox = meshgroupData.boundingBox,
+            countyAgs, countyMeshes;
+
+        for (countyAgs in this.drawnCounties) {
+            if (!this.drawnCounties.hasOwnProperty(countyAgs)) {
+                continue;
+            }
+            countyMeshes = this.drawnCounties[countyAgs].countyMeshes;
+            for (let i = 0; i < countyMeshes.length; i++) {
+                countyMeshes[i].setEnabled(true);
+            }
+        }
 
         let minX = boundingBox.minimumWorld.x;
         let minY = boundingBox.minimumWorld.y;
@@ -532,7 +551,10 @@ class App {
         let distance = (height / 1.75 / aspectRatio) / Math.tan(fov / 2);
         this.camera.setTarget(centerWorld);
         this.camera.setPosition(new Vector3(centerWorld.x, centerWorld.y, centerWorld.z - distance));
-        this.loadAndProcessCovidCases();
+
+        this.utilities.stopProcess(performanceValueT0, 'End: drawing meshes');
+
+        this.startDrawingCases();
     }
 
     getMeshgroupBoundingBox(_meshgroup: Mesh[]) {
@@ -621,7 +643,7 @@ class App {
         return particleSystemInstance;
     }
 
-    extractPositionsAndIndexes(_geometry) {
+    extractPositionsAndIndices(_geometry) {
         if (!_geometry || !_geometry.vertices) {
             throw new Error('Missing verticies');
         }
@@ -665,6 +687,8 @@ class App {
             vertexData = new VertexData(),
             material = new StandardMaterial(`caseMaterial`, this.scene),
             randomColor = Color3.Black();
+
+        customMesh.setEnabled(false);
 
         material.diffuseColor = randomColor;
         material.emissiveColor = randomColor;
