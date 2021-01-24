@@ -41,7 +41,7 @@ bounding box as well as the GeoJSON properties.
 
 ### Drawing covid cases
 
-The covid case records are loaded, sorted and grouped by date. Reported cases before the 27th of January are set to zero.
+The covid case records are loaded from JSON source, sorted and grouped by date. Reported cases before the 27th of January 2020 are set to zero.
 
 While drawing the cases for each day, execution time is measured. If the process was too fast, execution is paused for
 the time difference (*minimum execution time - real execution time*) to display each day long enough and for the DOM 
