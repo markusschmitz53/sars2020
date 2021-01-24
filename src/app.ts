@@ -16,7 +16,8 @@ import {
     ParticleSystem,
     Texture,
     GPUParticleSystem,
-    KeyboardEventTypes
+    KeyboardEventTypes,
+    PointerEventTypes
 } from '@babylonjs/core';
 import {getJSON} from '../node_modules/simple-get-json/dist/index-es.js';
 import * as d3 from 'd3';
@@ -25,28 +26,42 @@ import * as earcut from 'earcut'
 import {LoadingScreen} from './LoadingScreen';
 import {Utilities} from './Utilities';
 import {CustomCamera, GeometryCollection, MeshgroupData} from './Types';
-import {anaglyphPixelShader} from '@babylonjs/core/Shaders/anaglyph.fragment';
+import {Feature} from 'geojson';
 
 class App {
+    private readonly MAX_RANDOM_POINT_ITERATIONS = 500;
+    private readonly CASE_DRAW_ITERATION_MIN_TIME = 200;
+    private readonly NUMBER_OF_RANDOM_POINTS = 15;
+    private readonly PARTICLE_SYSTEM_CAPACITY = 100;
+    private readonly CAMERA_MOVEMENT_LIMIT = 50;
+    private readonly CAMERA_MOVEMENT_SPEED = 0.2;
+
     private readonly covidDataUrl: string;
     private readonly countiesDataUrl: string;
     private readonly radius: number;
     private readonly scene: Scene;
     private readonly camera: CustomCamera;
-    private counties: GeometryCollection;
-    private covidCases: any;
-    private drawnCounties: any;
-    private utilities: Utilities;
-    private engine: Engine;
-    private totalCasesCount = 0;
-    private meshesOfAllCounties: any;
-    private numberOfLoadedCounties: any;
-    private elapsedTimeForCountyPreparation: any;
+    private readonly utilities: Utilities;
+    private readonly engine: Engine;
+    private readonly countyStandardMaterial: StandardMaterial;
+    private readonly colorBlack: Color3;
+    private readonly colorWhite: Color3;
+    private readonly colorWhiteNonTransparent: Color4;
+    private readonly colorWhiteTransparent: Color4;
+    private readonly particleDirection: Vector3;
+    private readonly particleTexture: Texture;
+    private readonly verboseOutputActivated: boolean;
+    private readonly increaseParticleSizeDate1: number;
+    private readonly increaseParticleSizeDate2: number;
 
-    private readonly MAX_RANDOM_POINT_ITERATIONS = 500;
-    private readonly CASE_DRAW_ITERATION_MIN_TIME = 200;
-    private readonly NUMBER_OF_RANDOM_POINTS = 15;
-    private readonly PARTICLE_SYSTEM_CAPACITY = 100;
+    private readonly drawnCounties: object;
+    private counties: GeometryCollection;
+    private covidCases: Array<Feature>;
+    private centerWorld: any;
+    private drawnCasesCount = 0;
+    private meshesOfAllCounties: Array<Mesh>;
+    private numberOfLoadedCounties: number;
+    private elapsedTimeForCountyPreparation: string;
 
     constructor() {
         if (!window || !window.innerWidth || !window.innerHeight || !document) {
@@ -54,15 +69,17 @@ class App {
             throw new Error('global properties are undefined');
         }
 
+        this.verboseOutputActivated = false;
+
         this.checkMinimumWindowSize();
 
         console.info('%ccode and concept by Markus Schmitz. Check ' +
             'https://github.com/markusschmitz53/sars2020 for details about the project.', 'padding: 1rem; background: #000; color: #FFF');
 
         this.covidDataUrl = 'https://opendata.arcgis.com/datasets/9644cad183f042e79fb6ad00eadc4ecf_0.geojson';
-        this.countiesDataUrl = 'https://markusschmitz.info/landkreise_deutschland.json';
+        this.countiesDataUrl = 'https://sars.markusschmitz.info/landkreise_deutschland.json';
         this.drawnCounties = {};
-        this.elapsedTimeForCountyPreparation = 0;
+        this.elapsedTimeForCountyPreparation = '0.0';
         this.utilities = new Utilities();
 
         let canvas = document.createElement("canvas");
@@ -71,6 +88,17 @@ class App {
 
         this.engine = new Engine(canvas, true);
         this.scene = new Scene(this.engine);
+
+        this.colorBlack = Color3.Black();
+        this.colorWhite = Color3.White();
+        this.colorWhiteNonTransparent = new Color4(1, 1, 1, 1);
+        this.colorWhiteTransparent = new Color4(1, 1, 1, 0);
+        this.particleDirection = new Vector3(0, 0, -10);
+        this.particleTexture = new Texture('https://sars.markusschmitz.info/red_flare.png', this.scene);
+        this.increaseParticleSizeDate1 = Date.parse('2020-03-01');
+        this.increaseParticleSizeDate2 = Date.parse('2020-03-06');
+
+        this.countyStandardMaterial = new StandardMaterial(`caseMaterial`, this.scene);
 
         document.getElementsByTagName('canvas')[0].style.display = 'none';
         document.getElementsByTagName('canvas')[0].style.opacity = '0';
@@ -92,7 +120,7 @@ class App {
         );
         light.intensity = 1;
 
-        this.camera = new CustomCamera(
+         this.camera = new CustomCamera(
             'Camera',
             -Math.PI / 2,
             Math.PI / 2,
@@ -104,7 +132,6 @@ class App {
         this.camera.panningSensibility = 30;
         this.camera.inertia = 0;
         this.camera.minZ = 0;
-        this.camera.attachControl(canvas, false);
 
         this.engine.loadingScreen = new LoadingScreen('preparing data');
 
@@ -131,13 +158,25 @@ class App {
     showMessage1() {
         setTimeout(() => {
             this.utilities.fadeIn(document.getElementById('message1'), () => {
+                let deadlockCounter = 0;
+                let intervalId = setInterval(() => {
+                    ++deadlockCounter;
+                    if (this.counties) {
+                        clearInterval(intervalId);
+                        this.prepareCountyMeshes();
+                    }
+                    if (deadlockCounter > 10000) {
+                        throw new Error('county load timed out');
+                    }
+                }, 10);
+
                 setTimeout(() => {
                     this.utilities.fadeOut(document.getElementById('message1'), () => {
                         this.showMessage2();
                     });
                 }, 4000);
             });
-        }, 500);
+        }, 200);
     }
 
     showMessage2() {
@@ -160,16 +199,19 @@ class App {
     }
 
     start() {
-        this.showMessage1();
         this.loadCounties();
+        this.showMessage1();
         this.loadAndProcessCovidCases();
     }
 
     loadCounties() {
         //this.engine.displayLoadingUI();
 
-        let performanceValueT0 = this.utilities.startProcess('Start: loading counties');
+        let performanceValueT0;
 
+        if (this.verboseOutputActivated) {
+            performanceValueT0 = this.utilities.startProcess('Start: loading counties');
+        }
         getJSON([this.countiesDataUrl]).then((records) => {
             if (!records) {
                 throw new Error('no county records');
@@ -178,9 +220,10 @@ class App {
             }
 
             this.counties = records.pop();
-            this.utilities.stopProcess(performanceValueT0, 'End: loading counties');
 
-            this.prepareCountyMeshes();
+            if (this.verboseOutputActivated) {
+                this.utilities.stopProcess(performanceValueT0, 'End: loading counties');
+            }
         }, (error) => {
             console.error('error', error);
         });
@@ -190,7 +233,7 @@ class App {
 
     cameraTracking() {
         setTimeout(() => {
-            this.camera.spinTo('beta', 2.62, 20);
+            this.camera.spinTo('beta', 2.2, 20);
         }, 0);
         setTimeout(async () => {
             this.cameraTarget = this.camera.getTarget().clone();
@@ -203,20 +246,16 @@ class App {
             }, 10);
         }, 0);
         setTimeout(() => {
-            this.camera.spinTo('radius', 135, 20);
+            this.camera.spinTo('radius', 145, 20);
         }, 5000);
     }
 
-    cameraMovement() {
-        if (!this.camera) {
-            return;
-        }
-
-        this.camera.setTarget(Vector3.Lerp(this.camera.getTarget(), this.cameraTarget, 0.001));
-    }
-
     loadAndProcessCovidCases() {
-        let performanceValueT0 = this.utilities.startProcess('Start: loading cases');
+        let performanceValueT0;
+
+        if (this.verboseOutputActivated) {
+            performanceValueT0 = this.utilities.startProcess('Start: loading cases');
+        }
         getJSON([this.covidDataUrl]).then((records: GeometryCollection) => {
             if (!records) {
                 throw new Error('failed to load covid records');
@@ -233,14 +272,17 @@ class App {
             }
 
             this.covidCases = this.utilities.fixCasesAndGroupByDate(data);
-            this.utilities.stopProcess(performanceValueT0, 'End: loading cases');
+
+            if (this.verboseOutputActivated) {
+                this.utilities.stopProcess(performanceValueT0, 'End: loading cases');
+            }
         }, (error) => {
             console.error('error', error);
         });
     }
 
     startDrawingCases(_withoutCameraTracking?) {
-        this.totalCasesCount = 0;
+        this.drawnCasesCount = 0;
         let currentDayDomElement = document.getElementById('currentDay');
         if (!currentDayDomElement) {
             currentDayDomElement = document.createElement('div');
@@ -268,30 +310,8 @@ class App {
             });
         }
         setTimeout(() => {
-            this.utilities.fadeIn(currentDayDomElement, () => {
-            });
+            this.utilities.fadeIn(currentDayDomElement, () => {});
         }, 2000);
-    }
-
-    getCountyKey(_raw) {
-        let countyKey = parseInt(_raw, 10);
-        // merge districts of Berlin to Landkreis Berlin
-        switch (countyKey) {
-            case 11001:
-            case 11002:
-            case 11003:
-            case 11004:
-            case 11005:
-            case 11006:
-            case 11007:
-            case 11008:
-            case 11009:
-            case 11010:
-            case 11011:
-            case 11012:
-                countyKey = 11000;
-        }
-        return countyKey;
     }
 
     drawCovidCasesForDay(_covidCases, _date) {
@@ -307,7 +327,7 @@ class App {
             throw new Error('Wrong structure for covid case');
         }
 
-        let countyKey = this.getCountyKey(_covidCase.properties.IdLandkreis),
+        let countyKey = _covidCase.properties.IdLandkreis,
             cases = parseInt(_covidCase.properties.AnzahlFall, 10);
 
         if (!this.drawnCounties.hasOwnProperty(countyKey)) {
@@ -323,12 +343,14 @@ class App {
             return;
         }
 
-        this.totalCasesCount += cases;
+        this.drawnCasesCount += cases;
         particleSystem.emitter = randomPoints[Math.floor((Math.random() * randomPoints.length))];
-        if (_date > '2020/03/06') {
+        _date = Date.parse(_date);
+
+        if (_date > this.increaseParticleSizeDate2) {
             particleSystem.minSize = 0.15;
             particleSystem.maxSize = 0.3;
-        } else if(_date > '2020/03/01')  {
+        } else if(_date > this.increaseParticleSizeDate1)  {
             particleSystem.minSize = 0.3;
             particleSystem.maxSize = 0.4;
         } else {
@@ -339,29 +361,42 @@ class App {
     }
 
     async drawCovidCases() {
-        let performanceValueT0 = this.utilities.startProcess('Start: drawing cases');
+        let performanceValueT0;
+        if (this.verboseOutputActivated) {
+            performanceValueT0 = this.utilities.startProcess('Start: drawing cases');
+        }
 
         let currentDayDomElement = document.getElementById('currentDay'),
             covidCases = this.covidCases,
-            timeMax = this.CASE_DRAW_ITERATION_MIN_TIME,
+            timeMin = this.CASE_DRAW_ITERATION_MIN_TIME,
+            timeMax = 0,
             timestamp, executionTime, date, totalCasesFormatted;
 
         for (date in covidCases) {
             timestamp = performance.now();
-            totalCasesFormatted = this.totalCasesCount.toString().replace(/(\d)(?=(\d\d\d)+(?!\d))/g, "$1.");
+            totalCasesFormatted = this.drawnCasesCount.toString().replace(/(\d)(?=(\d\d\d)+(?!\d))/g, "$1.");
             currentDayDomElement.innerHTML = this.utilities.formatDate(date) + '<br><span class="small">' + totalCasesFormatted + ' cumulative cases</span>';
             this.drawCovidCasesForDay(covidCases[date], date);
             executionTime = performance.now() - timestamp;
 
+            if (executionTime > timeMax) {
+                timeMax = executionTime;
+            }
+
             // slow down the process to show each day long enough
-            if (executionTime < timeMax) {
-                await this.utilities.sleep(timeMax - executionTime);
+            if (executionTime < timeMin) {
+                await this.utilities.sleep(timeMin - executionTime);
             }
         }
-        console.info('Max execution time for particle drawing: ' + timeMax);
-        this.utilities.stopProcess(performanceValueT0, 'End: drawing cases');
+
+        if (this.verboseOutputActivated) {
+            console.info('Max execution time for particle drawing: ' + executionTime);
+            this.utilities.stopProcess(performanceValueT0, 'End: drawing cases');
+        }
+
+        // TODO: implement /i-am-a-nitpicker and adding of cases instead of this here
         currentDayDomElement.innerHTML = this.utilities.formatDate(date) + '<br><span class="small">1.891.581 cumulative cases</span>';
-       // this.showOutro();
+        this.showOutro();
     }
 
     showOutro() {
@@ -395,7 +430,10 @@ class App {
     }
 
     prepareCountyData(_counties) {
-        let performanceValueT0 = this.utilities.startProcess('Start: projecting GeoJSON');
+        let performanceValueT0;
+        if (this.verboseOutputActivated) {
+            performanceValueT0 = this.utilities.startProcess('Start: projecting GeoJSON');
+        }
 
         // project the lat and long values from GeoJSON to pixel values
         let counties = d3Geo.geoProject(_counties, this.utilities.getProjection(d3.geoBounds(_counties)));
@@ -403,7 +441,10 @@ class App {
         // projected values are in the wrong orientation for displaying on canvas so we flip them
         counties = d3Geo.geoProject(counties, d3.geoIdentity().reflectY(true));
 
-        this.utilities.stopProcess(performanceValueT0, 'End: projecting GeoJSON');
+
+        if (this.verboseOutputActivated) {
+            this.utilities.stopProcess(performanceValueT0, 'End: projecting GeoJSON');
+        }
 
         return counties.features;
     }
@@ -416,7 +457,8 @@ class App {
         let performanceValueT0 = this.utilities.startProcess('Start: generating meshes');
 
         let countiesProjectedGeoJsonData = this.prepareCountyData(this.counties),
-        positionsAndIndicesForCounty, countyMeshes, feature, geometry, properties, countyLabel, countyAgs, flattenedGeometry;
+        countyMeshes, feature, geometry, properties, countyLabel, countyAgs, flattenedGeometry,
+        tempExtractedData;
 
         this.meshesOfAllCounties = [];
         this.numberOfLoadedCounties = countiesProjectedGeoJsonData.length;
@@ -425,7 +467,6 @@ class App {
             feature = countiesProjectedGeoJsonData[i];
             geometry = feature.geometry;
             properties = feature.properties;
-            positionsAndIndicesForCounty = [];
             countyMeshes = [];
 
             if (!geometry || !properties || !properties.GEN || !properties.AGS) {
@@ -434,15 +475,15 @@ class App {
             }
 
             countyLabel = properties.GEN;
-            countyAgs = parseInt(properties.AGS, 10); // places 1-2 state, places 3-5 for county
+            countyAgs = parseInt(properties.AGS, 10); // places 1-2 for state, places 3-5 for county
 
             if (feature.geometry.type === 'MultiPolygon') {
                 flattenedGeometry = geometry.coordinates.map((coord, i) => {
                     return {
                         ...earcut.flatten(coord),
                         countyAgs: countyAgs,
-                        id: `${countyAgs}-${i}`,
-                        countyLabel: countyLabel
+                        countyLabel: countyLabel,
+                        id: `${countyAgs}-${i}`
                     };
                 });
             } else {
@@ -458,39 +499,43 @@ class App {
                 throw new Error('Missing flattened geometry');
             }
 
+            countyAgs = null;
+            countyLabel = '';
+
             // some geometries are MultiPolygons, some just Polygons
             if (Array.isArray(flattenedGeometry)) {
                 flattenedGeometry.forEach((_geometry) => {
-                    let tempExtractedData = this.extractPositionsAndIndices(_geometry);
+                    tempExtractedData = this.extractPositionsAndIndices(_geometry);
 
                     if (!tempExtractedData.indices || !tempExtractedData.indices.length) {
                         console.error('Failed to extract data')
                         return;
                     }
 
-                    positionsAndIndicesForCounty.push(tempExtractedData);
+                    let mesh = this.getCountyMesh(tempExtractedData);
+                    if (mesh) {
+                        // countyAgs is the same for all elements of a MultiPolygon
+                        countyAgs = tempExtractedData.countyAgs;
+                        countyLabel = tempExtractedData.countyLabel;
+                        countyMeshes.push(mesh);
+                        this.meshesOfAllCounties.push(mesh);
+                    } else {
+                        throw new Error('Failed to generate county mesh');
+                    }
                 });
             } else {
-                positionsAndIndicesForCounty.push(this.extractPositionsAndIndices(flattenedGeometry));
-            }
-
-            countyAgs = null;
-            countyLabel = '';
-
-            // iterate over all vertices of the current county and generate meshes
-            positionsAndIndicesForCounty.forEach((extractedData) => {
-                countyAgs = null;
-                let mesh = this.getCountyMesh(extractedData);
+                tempExtractedData = this.extractPositionsAndIndices(flattenedGeometry);
+                let mesh = this.getCountyMesh(tempExtractedData);
                 if (mesh) {
                     // countyAgs is the same for all elements of a MultiPolygon
-                    countyAgs = extractedData.countyAgs;
-                    countyLabel = extractedData.countyLabel;
+                    countyAgs = tempExtractedData.countyAgs;
+                    countyLabel = tempExtractedData.countyLabel;
                     countyMeshes.push(mesh);
                     this.meshesOfAllCounties.push(mesh);
                 } else {
                     throw new Error('Failed to generate county mesh');
                 }
-            });
+            }
 
             if (countyAgs) {
                 let meshgroupData = this.getMeshgroupBoundingBox(countyMeshes),
@@ -515,7 +560,9 @@ class App {
     }
 
     drawCountyMeshes() {
-        if (true || this.elapsedTimeForCountyPreparation === 0 || this.elapsedTimeForCountyPreparation > '6.0') {
+        let elapsedTime = parseFloat(this.elapsedTimeForCountyPreparation),
+        performanceValueT0;
+        if (elapsedTime === 0.0 || elapsedTime > 10.0) {
             alert('I hate to break it to you but while you were sitting there all excited I was doing some calculations and ... it\'s not looking good.' +
                 '\nIt could be that your hardware is too slow or I\'m bad a math, we\'ll never know. Let\'s just call it unfortunate circumstances for now.' +
                 '\n\nAs a matter of fact, it took over ' + this.elapsedTimeForCountyPreparation + ' seconds to generate some data in the background and that\'s just too long.' +
@@ -523,19 +570,18 @@ class App {
             throw new Error('data preparation took too long (' + this.elapsedTimeForCountyPreparation + 's)');
         }
 
-        let performanceValueT0 = this.utilities.startProcess('Start: drawing meshes');
+        if (this.verboseOutputActivated) {
+            performanceValueT0 = this.utilities.startProcess('Start: drawing meshes');
+            console.info('drawing ' + this.numberOfLoadedCounties + ' counties as ' + this.meshesOfAllCounties.length + ' meshes');
+        }
 
-        console.info('drawing ' + this.numberOfLoadedCounties + ' counties as ' + this.meshesOfAllCounties.length + ' meshes');
         let meshgroupData = this.getMeshgroupBoundingBox(this.meshesOfAllCounties),
             boundingBox = meshgroupData.boundingBox,
-            countyAgs, countyMeshes;
+            countyAgs, countyMeshes, i;
 
         for (countyAgs in this.drawnCounties) {
-            if (!this.drawnCounties.hasOwnProperty(countyAgs)) {
-                continue;
-            }
             countyMeshes = this.drawnCounties[countyAgs].countyMeshes;
-            for (let i = 0; i < countyMeshes.length; i++) {
+            for (i = 0; i < countyMeshes.length; i++) {
                 countyMeshes[i].setEnabled(true);
             }
         }
@@ -549,48 +595,103 @@ class App {
         let fov = this.camera.fov;
         let aspectRatio = this.engine.getAspectRatio(this.camera);
         let distance = (height / 1.75 / aspectRatio) / Math.tan(fov / 2);
+
         this.camera.setTarget(centerWorld);
         this.camera.setPosition(new Vector3(centerWorld.x, centerWorld.y, centerWorld.z - distance));
 
-        this.utilities.stopProcess(performanceValueT0, 'End: drawing meshes');
+        if (this.verboseOutputActivated) {
+            this.utilities.stopProcess(performanceValueT0, 'End: drawing meshes');
+        }
 
+        this.centerWorld = centerWorld;
+        this.cameraTarget = centerWorld;
+
+        this.scene.onPrePointerObservable.add((pointerInfo, eventState) => {
+            let event = <any>pointerInfo.event;
+
+            if (event.wheelDelta) {
+                if (event.wheelDelta < 0) {
+                    this.camera.fov += 0.1;
+                } else if (event.wheelDelta > 0 && this.camera.fov > 0.2) {
+                    this.camera.fov -= 0.1;
+                }
+            }
+        }, PointerEventTypes.POINTERWHEEL, false);
+
+        this.scene.onKeyboardObservable.add(this.onKeyboardInput.bind(this));
         this.startDrawingCases();
     }
 
-    getMeshgroupBoundingBox(_meshgroup: Mesh[]) {
-        let meshGroupClone = [];
+    onKeyboardInput(kbInfo) {
+        switch (kbInfo.type) {
+            case KeyboardEventTypes.KEYDOWN:
+                let newTarget = this.camera.getTarget();
+                let key = kbInfo.event.key;
+                if (key === 'ArrowUp' || key === 'w') {
+                    if (newTarget.y > this.centerWorld.y + (this.CAMERA_MOVEMENT_LIMIT / 2)) {
+                        return;
+                    }
+                    newTarget.y += this.CAMERA_MOVEMENT_SPEED;
+                    this.camera.setTarget(newTarget);
+                }
+                if (key === 'ArrowDown' || key === 's') {
+                    if (newTarget.y < this.centerWorld.y - this.CAMERA_MOVEMENT_LIMIT) {
+                        return;
+                    }
+                    newTarget.y -= this.CAMERA_MOVEMENT_SPEED;
+                    this.camera.setTarget(newTarget);
+                }
+                if (key === 'ArrowLeft' || key === 'a') {
+                    if (newTarget.x < this.centerWorld.x - this.CAMERA_MOVEMENT_LIMIT) {
+                        return;
+                    }
+                    newTarget.x -= this.CAMERA_MOVEMENT_SPEED;
+                    this.camera.setTarget(newTarget);
+                }
+                if (key === 'ArrowRight' || key === 'd') {
+                    if (newTarget.x > this.centerWorld.x + this.CAMERA_MOVEMENT_LIMIT) {
+                        return;
+                    }
+                    newTarget.x += this.CAMERA_MOVEMENT_SPEED;
+                    this.camera.setTarget(newTarget);
+                }
+                break;
+        }
+    }
 
-        for (let i = 0; i < _meshgroup.length; i++) {
+    getMeshgroupBoundingBox(_meshgroup: Mesh[]) {
+        let meshGroupClone = [],
+            randomPoints = [],
+            data: MeshgroupData = {
+                boundingBox: {},
+                randomPoints: {}
+            },
+            i, k, randomPoint, iterations, maxX, minX, maxY, minY, x, y;
+
+        for (i = 0; i < _meshgroup.length; i++) {
             meshGroupClone.push(_meshgroup[i].clone("clone"));
         }
 
         // merge all meshes to one group and get the bounding box
         let mergedMesh = Mesh.MergeMeshes(meshGroupClone, true, true),
-            randomPoints = [],
-            randomPoint,
-            iterations;
-
-        for (let k = meshGroupClone.length; k > 0; k--) {
-            meshGroupClone[k - 1].dispose();
-        }
+            {boundingBox} = mergedMesh.getBoundingInfo();
 
         mergedMesh.isVisible = false;
 
-        let {boundingBox} = mergedMesh.getBoundingInfo(),
-            data: MeshgroupData = {
-                boundingBox: {},
-                randomPoints: {}
-            };
+        for (k = meshGroupClone.length; k > 0; k--) {
+            meshGroupClone[k - 1].dispose();
+        }
 
-        for (let i = 0; i < this.NUMBER_OF_RANDOM_POINTS; i++) {
+        maxX = boundingBox.maximum.x;
+        minX = boundingBox.minimum.x;
+        maxY = boundingBox.maximum.y;
+        minY = boundingBox.minimum.y;
+
+        for (i = 0; i < this.NUMBER_OF_RANDOM_POINTS; i++) {
             iterations = 0;
             do {
-                let maxX = boundingBox.maximum.x,
-                    minX = boundingBox.minimum.x,
-                    maxY = boundingBox.maximum.y,
-                    minY = boundingBox.minimum.y,
-                    x = (Math.random() * (maxX - minX) + minX),
-                    y = (Math.random() * (maxY - minY) + minY);
+                x = (Math.random() * (maxX - minX) + minX);
+                y = (Math.random() * (maxY - minY) + minY);
 
                 randomPoint = new Vector3(x, y, boundingBox.center.z);
                 ++iterations;
@@ -614,7 +715,7 @@ class App {
 
 
     drawParticleSystem(_positionX, _positionY) {
-        let particleSystemInstance = new ParticleSystem("particles", this.PARTICLE_SYSTEM_CAPACITY, this.scene);
+        let particleSystemInstance = new ParticleSystem('particles', this.PARTICLE_SYSTEM_CAPACITY, this.scene);
         /*
             if (GPUParticleSystem.IsSupported) {
                 myParticleSystem = new GPUParticleSystem("particles", {capacity: 100}, this.scene);
@@ -623,19 +724,19 @@ class App {
             }
         */
 
-        particleSystemInstance.particleTexture = new Texture("https://markusschmitz.info/Flare.png", this.scene);
+        particleSystemInstance.particleTexture = this.particleTexture;
         particleSystemInstance.emitter = new Vector3(_positionX, _positionY, -0.5);
         particleSystemInstance.emitRate = 2;
         particleSystemInstance.updateSpeed = 0.01;
         particleSystemInstance.minSize = 0.15;
         particleSystemInstance.maxSize = 0.3;
-        particleSystemInstance.addColorGradient(0, new Color4(1, 1, 1, 0)); //color at start of particle lifetime
-        particleSystemInstance.addColorGradient(1, new Color4(1, 1, 1, 1)); //color at end of particle lifetime
+        particleSystemInstance.addColorGradient(0, this.colorWhiteTransparent); //color at start of particle lifetime
+        particleSystemInstance.addColorGradient(1, this.colorWhiteNonTransparent); //color at end of particle lifetime
         particleSystemInstance.minEmitPower = 0.5;
         particleSystemInstance.maxEmitPower = 1;
         particleSystemInstance.minLifeTime = 0.5;
         particleSystemInstance.maxLifeTime = 2;
-        particleSystemInstance.direction1 = new Vector3(0, 0, -10);
+        particleSystemInstance.direction1 = this.particleDirection;
         particleSystemInstance.manualEmitCount = 0;
         particleSystemInstance.start();
         // particleSystemInstance.disposeOnStop = true;
@@ -658,13 +759,12 @@ class App {
             coordinates.pop();
         }
 
-        let indices = earcut(coordinates, _geometry.holes, _geometry.dimensions);
+        let indices = earcut(coordinates, _geometry.holes, _geometry.dimensions),
+            zCoordinate = 0,
+            i;
 
-        // add z-coordinate for all points
-        let zCoordinate = 0;
-
-        // coordinates array has the form [x1,y1,x2,y2,x3,y3...]
-        for (let i = 2; i < coordinates.length; i += 3) {
+        // add z-coordinate for all points. coordinates array has the form [x1,y1,x2,y2,x3,y3...]
+        for (i = 2; i < coordinates.length; i += 3) {
             coordinates.splice(i, 0, zCoordinate);
         }
         coordinates.splice(coordinates.length, 0, zCoordinate);
@@ -685,23 +785,23 @@ class App {
 
         let customMesh = new Mesh('poly', this.scene),
             vertexData = new VertexData(),
-            material = new StandardMaterial(`caseMaterial`, this.scene),
-            randomColor = Color3.Black();
+            material = this.countyStandardMaterial,
+            materialColor = this.colorBlack;
 
         customMesh.setEnabled(false);
 
-        material.diffuseColor = randomColor;
-        material.emissiveColor = randomColor;
+        material.diffuseColor = materialColor;
+        material.emissiveColor = materialColor;
 
         vertexData.positions = _corners.positions;
         vertexData.indices = _corners.indices;
 
         vertexData.applyToMesh(customMesh, true);
 
-        randomColor = Color3.White();
+        materialColor = this.colorWhite;
         customMesh.enableEdgesRendering();
         customMesh.edgesWidth = 20.0;
-        customMesh.edgesColor = new Color4(randomColor.r, randomColor.g, randomColor.b, 0.75);
+        customMesh.edgesColor = new Color4(materialColor.r, materialColor.g, materialColor.b, 0.75);
 
         customMesh.material = material;
 

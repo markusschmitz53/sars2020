@@ -1,10 +1,20 @@
 import * as d3 from 'd3';
 
 export class Utilities {
-    private performanceValueT0;
+    private totalCaseCount;
+    private readonly targetCaseCount;
 
     constructor() {
-        this.performanceValueT0 = null;
+        this.totalCaseCount = 0;
+        this.targetCaseCount = 1891581;
+    }
+
+    getTotalCaseCount() {
+        return this.totalCaseCount;
+    }
+
+    getTargetCaseCount() {
+        return this.targetCaseCount;
     }
 
     /**
@@ -68,28 +78,61 @@ export class Utilities {
 
     fixCasesAndGroupByDate(_data) {
         let sortedData = [],
-            date, feature;
+            maxDate = Date.parse('2021/01/01'),
+            minDate = Date.parse('2020/01/26'),
+            isBeforeMinDate = true,
+            totalCases = 0,
+            date, feature, properties;
 
         for (let i = 0; i < _data.length; i++) {
             feature = _data[i];
-            date = feature.properties.Meldedatum.substring(0, 10);
-            if (date >= '2021/01/01') {
+            properties = feature.properties;
+            properties.IdLandkreis = this.getCountyKey(properties.IdLandkreis);
+
+            date = Date.parse(properties.Meldedatum.substring(0, 10));
+            if (date >= maxDate) {
                 continue;
             }
 
             // fix wrong data
-            if (date < '2020/01/28') {
-                feature.properties.AnzahlFall = 0;
+            if (isBeforeMinDate && date < minDate) {
+                properties.AnzahlFall = 0;
+                isBeforeMinDate = false; // prevent date comparison after passing min date
             }
 
             if (!sortedData[date]) {
                 sortedData[date] = [];
             }
 
+            totalCases += properties.AnzahlFall;
+
             sortedData[date].push(feature);
         }
 
+        this.totalCaseCount = totalCases;
+
         return sortedData;
+    }
+
+    getCountyKey(_raw) {
+        let countyKey = parseInt(_raw, 10);
+        // merge districts of Berlin to Landkreis Berlin
+        switch (countyKey) {
+            case 11001:
+            case 11002:
+            case 11003:
+            case 11004:
+            case 11005:
+            case 11006:
+            case 11007:
+            case 11008:
+            case 11009:
+            case 11010:
+            case 11011:
+            case 11012:
+                countyKey = 11000;
+        }
+        return countyKey;
     }
 
     sortCasesByDate(_a, _b) {
