@@ -300,7 +300,7 @@ class App {
                 }, 4000);
                 setTimeout(() => {
                     this.drawCovidCases();
-                }, 8000);
+                }, 10000);
             });
         } else {
             this.utilities.fadeIn(document.getElementsByTagName('canvas')[0], () => {

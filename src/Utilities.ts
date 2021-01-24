@@ -78,9 +78,6 @@ export class Utilities {
 
     fixCasesAndGroupByDate(_data) {
         let sortedData = [],
-            maxDate = Date.parse('2021/01/01'),
-            minDate = Date.parse('2020/01/26'),
-            isBeforeMinDate = true,
             totalCases = 0,
             date, feature, properties;
 
@@ -89,15 +86,14 @@ export class Utilities {
             properties = feature.properties;
             properties.IdLandkreis = this.getCountyKey(properties.IdLandkreis);
 
-            date = Date.parse(properties.Meldedatum.substring(0, 10));
-            if (date >= maxDate) {
+            date = properties.Meldedatum.substring(0, 10);
+            if (date >= '2021/01/01') {
                 continue;
             }
 
-            // fix wrong data
-            if (isBeforeMinDate && date < minDate) {
+            // remove cases before the offical first case
+            if (date < '2020/01/27') {
                 properties.AnzahlFall = 0;
-                isBeforeMinDate = false; // prevent date comparison after passing min date
             }
 
             if (!sortedData[date]) {
