@@ -50,6 +50,7 @@ changes to be rendered.
 ## <a id="acknowledgements-and-sources">Acknowledgements And Sources</a>
 Covid case data by [Robert Koch-Institut (RKI)](https://www.rki.de/DE/Content/InfAZ/N/Neuartiges_Coronavirus/Fallzahlen.html) [dl-de/by-2-0](https://www.govdata.de/dl-de/by-2-0)   
 County data was generated using [GeoJSON Utilities](http://opendatalab.de/projects/geojson-utilities/)  
+Thanks to Beni, Tarek and Mery for the support :pray:
 
 ## Disclaimer And Contact
 The content provided through this project is an artistic representation of open source covid case data. I made some adjustments
