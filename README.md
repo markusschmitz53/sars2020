@@ -5,6 +5,8 @@ The website shows an animation of all registered SARS-CoV2 cases in Germany thro
   
 Cases start on the 28th of January 2020.
 
+[You can see it in action here](https://sars.markusschmitz.info/)
+
 ## About The Data
 I'm using data from [npgeo-corona-npgeo-de.hub.arcgis.com](https://npgeo-corona-npgeo-de.hub.arcgis.com/datasets/dd4580c810204019a7b8eb3e0b329dd6_0) for the covid cases.
 Some corrections to the data had to be made as it is [pretty flawed](https://www.ndr.de/nachrichten/info/Corona-Faelle-schon-im-Januar-Daten-unter-der-Lupe,falscheserkrankungsdatum100.html).
