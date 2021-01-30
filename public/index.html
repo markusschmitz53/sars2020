@@ -1,24 +1,32 @@
 <!DOCTYPE html>
 <html lang="en" xmlns="http://www.w3.org/1999/xhtml">
-    <head>
-        <meta charset="UTF-8">
-        <title>sars2020</title>
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <style type="text/css">
-            #message1,
-            #message2,
-            #message3,
-            #message4 {
-                display: none;
-                opacity: 0;
-                filter:  alpha(opacity=0);
-            }
-        </style>
-    </head>
-    <body>
-        <p id="message1">SARS-CoV-2 infected 1.891.581 people in Germany over the year 2020.</p>
-        <p id="message2">39.878 people died.</p>
-        <p id="message3">Press space to continue</p>
-        <p id="message4">Press space to restart</p>
-    </body>
+<head>
+	<meta charset="UTF-8">
+	<title>Animation of SARS-CoV-2 cases in 2020</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<style type="text/css">
+        #message1,
+        #message2,
+        #message3,
+        #message4 {
+            display: none;
+            opacity: 0;
+            filter:  alpha(opacity=0);
+        }
+	</style>
+</head>
+<body>
+<div class="contentBox" id="message1">
+	<span>SARS-CoV-2 infected 1.891.581 people in Germany over the year 2020.</span>
+</div>
+<div class="contentBox" id="message2">
+	<span>39.878 people died.</span>
+</div>
+<div class="contentBox" id="message3">
+	<span>Click to restart</span><br>
+</div>
+<div class="bottomBox small" id="message4">
+    Please consider <a href="https://ssl.aerzte-ohne-grenzen.de/form/online-spenden">donating</a> to Doctors Without Borders. Learn more about the project <a href="https://github.com/markusschmitz53/sars2020" title="Show project on GitHub">on GitHub</a>.
+</div>
+</body>
 </html>

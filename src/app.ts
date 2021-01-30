@@ -34,7 +34,7 @@ class App {
     private readonly NUMBER_OF_RANDOM_POINTS = 15;
     private readonly PARTICLE_SYSTEM_CAPACITY = 100;
     private readonly CAMERA_MOVEMENT_LIMIT = 50;
-    private readonly CAMERA_MOVEMENT_SPEED = 0.2;
+    private readonly CAMERA_MOVEMENT_SPEED = 0.4;
 
     private readonly covidDataUrl: string;
     private readonly countiesDataUrl: string;
@@ -184,7 +184,7 @@ class App {
              setTimeout(() => {
                  this.utilities.fadeOut(document.getElementById('message2'), () => {
                      setTimeout(() => {
-                         (window as any).app.drawCountyMeshes();
+                         (window as any).app.setCameraAddControlsAndStart();
                      }, 1000);
                  });
              }, 4000);
@@ -287,6 +287,7 @@ class App {
         if (!currentDayDomElement) {
             currentDayDomElement = document.createElement('div');
             currentDayDomElement.setAttribute('id', 'currentDay');
+            currentDayDomElement.setAttribute('title', 'Cumulative number of reported cases in Germany until the date');
             currentDayDomElement.style.display = 'none';
             currentDayDomElement.style.opacity = '0';
             document.body.appendChild(currentDayDomElement);
@@ -394,7 +395,6 @@ class App {
             this.utilities.stopProcess(performanceValueT0, 'End: drawing cases');
         }
 
-        // TODO: implement /i-am-a-nitpicker and adding of cases instead of this here
         currentDayDomElement.innerHTML = this.utilities.formatDate(date) + '<br><span class="small">1.891.581 cumulative cases</span>';
         this.showOutro();
     }
@@ -405,25 +405,28 @@ class App {
             });
             this.utilities.fadeOut(document.getElementsByTagName('canvas')[0], () => {
                 setTimeout(() => {
-                    let messageElement = document.getElementById('message4');
+                    let messageElement = document.getElementById('message3');
                     this.utilities.fadeIn(messageElement, () => {
                         messageElement.classList.add('animate-flicker');
-                        document.body.onkeyup = function (e) {
-                            if (e.keyCode == 32) {
-                                messageElement.classList.add('stop-animation');
-                                setTimeout(() => {
-                                    messageElement.classList.remove('animate-flicker');
-                                    (window as any).app.utilities.fadeOut(messageElement, () => {
-                                        messageElement.classList.remove('stop-animation');
-                                    });
-                                }, 200);
-                                setTimeout(() => {
-                                    (window as any).app.startDrawingCases(true);
-                                }, 1500);
-                                document.body.onkeyup = null;
-                            }
+                        document.body.onmousedown = function (e) {
+                            messageElement.classList.add('stop-animation');
+                            setTimeout(() => {
+                                messageElement.classList.remove('animate-flicker');
+                                (window as any).app.utilities.fadeOut(messageElement, () => {
+                                    messageElement.classList.remove('stop-animation');
+                                    (window as any).app.utilities.fadeOut(document.getElementById('message4'), () => {});
+                                });
+                            }, 200);
+                            setTimeout(() => {
+                                (window as any).app.startDrawingCases(true);
+                            }, 1500);
+                            document.body.onmousedown = null;
                         }
                     });
+                    setTimeout(() => {
+                        this.utilities.fadeIn(document.getElementById('message4'), () => {
+                        });
+                    }, 200);
                 }, 1000);
             });
         }, 4000);
@@ -559,9 +562,8 @@ class App {
         this.elapsedTimeForCountyPreparation = this.utilities.stopProcess(performanceValueT0, 'End: generating meshes');
     }
 
-    drawCountyMeshes() {
-        let elapsedTime = parseFloat(this.elapsedTimeForCountyPreparation),
-        performanceValueT0;
+    setCameraAddControlsAndStart() {
+        let elapsedTime = parseFloat(this.elapsedTimeForCountyPreparation);
         if (elapsedTime === 0.0 || elapsedTime > 35.0) {
             alert('I hate to break it to you but while you were sitting there all excited I was doing some calculations and ... it\'s not looking good.' +
                 '\nIt could be that your hardware is too slow or I\'m bad at math, we\'ll never know. Let\'s just call it unfortunate circumstances for now.' +
@@ -570,21 +572,8 @@ class App {
             throw new Error('data preparation took too long (' + this.elapsedTimeForCountyPreparation + 's)');
         }
 
-        if (this.verboseOutputActivated) {
-            performanceValueT0 = this.utilities.startProcess('Start: drawing meshes');
-            console.info('drawing ' + this.numberOfLoadedCounties + ' counties as ' + this.meshesOfAllCounties.length + ' meshes');
-        }
-
         let meshgroupData = this.getMeshgroupBoundingBox(this.meshesOfAllCounties),
-            boundingBox = meshgroupData.boundingBox,
-            countyAgs, countyMeshes, i;
-
-        for (countyAgs in this.drawnCounties) {
-            countyMeshes = this.drawnCounties[countyAgs].countyMeshes;
-            for (i = 0; i < countyMeshes.length; i++) {
-                countyMeshes[i].setEnabled(true);
-            }
-        }
+            boundingBox = meshgroupData.boundingBox;
 
         let minX = boundingBox.minimumWorld.x;
         let minY = boundingBox.minimumWorld.y;
@@ -598,10 +587,6 @@ class App {
 
         this.camera.setTarget(centerWorld);
         this.camera.setPosition(new Vector3(centerWorld.x, centerWorld.y, centerWorld.z - distance));
-
-        if (this.verboseOutputActivated) {
-            this.utilities.stopProcess(performanceValueT0, 'End: drawing meshes');
-        }
 
         this.centerWorld = centerWorld;
         this.cameraTarget = centerWorld;
@@ -617,8 +602,8 @@ class App {
                 }
             }
         }, PointerEventTypes.POINTERWHEEL, false);
-
         this.scene.onKeyboardObservable.add(this.onKeyboardInput.bind(this));
+
         this.startDrawingCases();
     }
 
@@ -734,8 +719,8 @@ class App {
         particleSystemInstance.addColorGradient(1, this.colorWhiteNonTransparent); //color at end of particle lifetime
         particleSystemInstance.minEmitPower = 0.5;
         particleSystemInstance.maxEmitPower = 1;
-        particleSystemInstance.minLifeTime = 0.5;
-        particleSystemInstance.maxLifeTime = 2;
+        particleSystemInstance.minLifeTime = 2;
+        particleSystemInstance.maxLifeTime = 4;
         particleSystemInstance.direction1 = this.particleDirection;
         particleSystemInstance.manualEmitCount = 0;
         particleSystemInstance.start();
@@ -787,8 +772,6 @@ class App {
             vertexData = new VertexData(),
             material = this.countyStandardMaterial,
             materialColor = this.colorBlack;
-
-        customMesh.setEnabled(false);
 
         material.diffuseColor = materialColor;
         material.emissiveColor = materialColor;

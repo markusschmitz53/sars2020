@@ -25,10 +25,11 @@ the canvas. The [necessary triangulation](https://en.wikipedia.org/wiki/Triangul
 I took a lot of inspiration from [this great tutorial](https://observablehq.com/@niamleeson/how-to-render-geojson-on-babylon-js) by Jay Kim and [this one](https://observablehq.com/@sto3psl/map-of-germany-in-d3-js)
 by Fabian Gündel.
 
-The keyboard and mouse movement is pretty janky since I just add to the camera target vector without lerping
+The keyboard and mouse movement is pretty janky since I just add on the camera target vector without lerping
 or animation but who cares, right?
 
-There are many things I really would've liked to improve, but it's just a weekend project after all ...
+There are many things I really would've liked to improve, but it's a weekend project after all. 
+I would sum it up as a beautiful heap of bodged lines connected by plenty of `setTimeout()` :running:.
 
 ### Drawing counties
 

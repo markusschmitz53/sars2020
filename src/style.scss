@@ -69,6 +69,34 @@ canvas {
     text-align: center;
 }
 
+.contentBox {
+  height: 100vh;
+  line-height: 100vh;
+  text-align: center;
+
+    span {
+        display: inline-block;
+        vertical-align: middle;
+        line-height: normal;
+    }
+}
+
+.bottomBox {
+    position: absolute;
+    bottom: 2vh;
+    width: 100vw;
+    color: #CCC;
+
+    a,
+    a:visited {
+        color: #CCC;
+    }
+
+    a:hover {
+        color: #FFF;
+    }
+}
+
 #currentDay {
     position: absolute;
     z-index: 400;
@@ -77,6 +105,11 @@ canvas {
     text-align: left;
     line-height: 20pt;
     cursor: help;
+    color: #CCC;
+}
+
+.message3 {
+    cursor: pointer;
 }
 
 .small {
