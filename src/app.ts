@@ -45,7 +45,7 @@ class App {
     private readonly engine: Engine;
     private readonly countyStandardMaterial: StandardMaterial;
     private readonly colorBlack: Color3;
-    private readonly colorWhite: Color3;
+    private readonly colorGray: Color3;
     private readonly colorWhiteNonTransparent: Color4;
     private readonly colorWhiteTransparent: Color4;
     private readonly particleDirection: Vector3;
@@ -90,7 +90,7 @@ class App {
         this.scene = new Scene(this.engine);
 
         this.colorBlack = Color3.Black();
-        this.colorWhite = Color3.White();
+        this.colorGray = Color3.Gray();
         this.colorWhiteNonTransparent = new Color4(1, 1, 1, 1);
         this.colorWhiteTransparent = new Color4(1, 1, 1, 0);
         this.particleDirection = new Vector3(0, 0, -10);
@@ -562,9 +562,9 @@ class App {
     drawCountyMeshes() {
         let elapsedTime = parseFloat(this.elapsedTimeForCountyPreparation),
         performanceValueT0;
-        if (elapsedTime === 0.0 || elapsedTime > 10.0) {
+        if (elapsedTime === 0.0 || elapsedTime > 35.0) {
             alert('I hate to break it to you but while you were sitting there all excited I was doing some calculations and ... it\'s not looking good.' +
-                '\nIt could be that your hardware is too slow or I\'m bad a math, we\'ll never know. Let\'s just call it unfortunate circumstances for now.' +
+                '\nIt could be that your hardware is too slow or I\'m bad at math, we\'ll never know. Let\'s just call it unfortunate circumstances for now.' +
                 '\n\nAs a matter of fact, it took over ' + this.elapsedTimeForCountyPreparation + ' seconds to generate some data in the background and that\'s just too long.' +
                 '\n\nIf your computer is running on battery try plugging it into a power source or ask your neighbor to use their computer 8-)')
             throw new Error('data preparation took too long (' + this.elapsedTimeForCountyPreparation + 's)');
@@ -798,10 +798,10 @@ class App {
 
         vertexData.applyToMesh(customMesh, true);
 
-        materialColor = this.colorWhite;
+        materialColor = this.colorGray;
         customMesh.enableEdgesRendering();
-        customMesh.edgesWidth = 20.0;
-        customMesh.edgesColor = new Color4(materialColor.r, materialColor.g, materialColor.b, 0.75);
+        customMesh.edgesWidth = 25.0;
+        customMesh.edgesColor = new Color4(materialColor.r, materialColor.g, materialColor.b, 0.5);
 
         customMesh.material = material;
 

@@ -1,9 +1,7 @@
 # sars2020
 
 The website shows an animation of all registered SARS-CoV2 cases in Germany throughout the year 2020. The
- cases are shown over time per county using open source data.  
-  
-Cases start on the 28th of January 2020.
+ cases are shown over time per county using open source data. Cases start on the 28th of January 2020.
 
 [You can see it in action here](https://sars.markusschmitz.info/)
 
