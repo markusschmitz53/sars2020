@@ -33,10 +33,12 @@ I would sum it up as a beautiful heap of bodged lines connected by plenty of `se
 
 ### Drawing counties
 
+<img style="float:right; margin-left: 1rem;" src="http://sars.markusschmitz.info/boundingboxes.jpg" alt="Counties of Germany with bounding boxes" width="400"/>
 Each county is rendered as a separate [polygon mesh](https://en.wikipedia.org/wiki/Polygon_mesh). It's center point
 is determined using the [bounding box](https://en.wikipedia.org/wiki/Minimum_bounding_box). I'm generating a number of 
 random points within the bounding box to emit particles from later on. **This is also why some of the case particles
-float outside of the borders.** 
+float outside of the borders.**
+
 An array of all drawn counties is created in the process which also includes the counties name, the center point of the mesh, 
 bounding box as well as the GeoJSON properties.
 
