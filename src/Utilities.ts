@@ -1,4 +1,7 @@
 import * as d3 from 'd3';
+import * as earcut from 'earcut';
+import {Mesh, Vector3} from '@babylonjs/core';
+import {MeshgroupData} from './Types';
 
 export class Utilities {
     private totalCaseCount;
@@ -32,10 +35,10 @@ export class Utilities {
             .center([centerX, centerY]);
     }
 
-    formatDate(_date) {
-        let year = _date.substr(0, 4),
-            month = _date.substr(5,2),
-            day = _date.substr(8,2);
+    formatDateToGerman(_date) {
+        let year = _date.slice(0, 4),
+            month = _date.slice(5, 7),
+            day = _date.slice(8, 10);
 
         return day + '.' + month + '.' + year;
     }
@@ -86,7 +89,7 @@ export class Utilities {
             properties = feature.properties;
             properties.IdLandkreis = this.getCountyKey(properties.IdLandkreis);
 
-            date = properties.Meldedatum.substring(0, 10);
+            date = properties.Meldedatum.slice(0, 10);
             if (date >= '2021/01/01') {
                 continue;
             }
@@ -145,5 +148,100 @@ export class Utilities {
         console.info(_hint + ' (' + timeDifference + 's)');
 
         return timeDifference;
+    }
+
+    getMeshgroupBoundingBox(_meshgroup: Mesh[], _withRandomPoints = false, _numberOfPoints?, _pointInterationLimit?) {
+        let meshGroupClone = [],
+            randomPoints = [],
+            data: MeshgroupData = {
+                boundingBox: {},
+                randomPoints: {}
+            },
+            i, k, randomPoint, iterations, maxX, minX, maxY, minY, x, y;
+
+        for (i = 0; i < _meshgroup.length; i++) {
+            meshGroupClone.push(_meshgroup[i].clone("clone"));
+        }
+
+        // merge all meshes to one group and get the bounding box
+        let mergedMesh = Mesh.MergeMeshes(meshGroupClone, true, true),
+            {boundingBox} = mergedMesh.getBoundingInfo();
+
+        mergedMesh.isVisible = false;
+
+        for (k = meshGroupClone.length; k > 0; k--) {
+            meshGroupClone[k - 1].dispose();
+        }
+
+        maxX = boundingBox.maximum.x;
+        minX = boundingBox.minimum.x;
+        maxY = boundingBox.maximum.y;
+        minY = boundingBox.minimum.y;
+
+        // generate random points within the bounding box of the mesh
+        if (_withRandomPoints) {
+            for (i = 0; i < _numberOfPoints; i++) {
+                iterations = 0;
+                do {
+                    x = (Math.random() * (maxX - minX) + minX);
+                    y = (Math.random() * (maxY - minY) + minY);
+
+                    randomPoint = new Vector3(x, y, boundingBox.center.z);
+                    ++iterations;
+
+                    if (iterations > _pointInterationLimit) {
+                        console.error("check iterations on random points");
+                        break;
+                    }
+                }
+                while (!mergedMesh.intersectsPoint(randomPoint));
+                randomPoints.push(randomPoint);
+            }
+
+            if (randomPoints.length === 0) {
+                console.error('setting fallback vector for particle system position');
+                randomPoints.push(new Vector3(boundingBox.center.x, boundingBox.center.y, boundingBox.center.z));
+            }
+        }
+
+        mergedMesh.dispose();
+
+        data.boundingBox = boundingBox;
+        data.randomPoints = randomPoints;
+
+        return data;
+    }
+
+    extractPositionsAndIndices(_geometry) {
+        if (!_geometry || !_geometry.vertices) {
+            throw new Error('Missing verticies');
+        }
+
+        let coordinates = [].slice.apply(_geometry.vertices);
+
+        if (
+            coordinates[0] === coordinates[coordinates.length - 2] &&
+            coordinates[1] === coordinates[coordinates.length - 1]
+        ) {
+            coordinates.pop();
+            coordinates.pop();
+        }
+
+        let indices = earcut(coordinates, _geometry.holes, _geometry.dimensions),
+            zCoordinate = 0,
+            i;
+
+        // add z-coordinate for all points. coordinates array has the form [x1,y1,x2,y2,x3,y3...]
+        for (i = 2; i < coordinates.length; i += 3) {
+            coordinates.splice(i, 0, zCoordinate);
+        }
+        coordinates.splice(coordinates.length, 0, zCoordinate);
+
+        return {
+            positions: coordinates,
+            indices,
+            countyLabel: _geometry.countyLabel,
+            countyAgs: _geometry.countyAgs
+        };
     }
 }
