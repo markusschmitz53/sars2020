@@ -3,7 +3,8 @@
 The website shows an animation of all registered SARS-CoV2 cases in Germany throughout the year 2020. The
  cases are shown over time per county using open source data. Cases start on the 28th of January 2020.
 
-[You can see it in action here](https://sars.markusschmitz.info/)
+[You can see it live here](https://sars.markusschmitz.info/)
+or [on Vimeo](https://vimeo.com/506764341).
 
 ## About The Data
 I'm using data from [npgeo-corona-npgeo-de.hub.arcgis.com](https://npgeo-corona-npgeo-de.hub.arcgis.com/datasets/dd4580c810204019a7b8eb3e0b329dd6_0) for the covid cases.
@@ -54,7 +55,7 @@ Covid case data by [Robert Koch-Institut (RKI)](https://www.rki.de/DE/Content/In
 County data was generated using [GeoJSON Utilities](http://opendatalab.de/projects/geojson-utilities/)  
 Feel free to use my code in any way you want. 
   
-Special thanks to Beni, Tarek and Mery for the support :pray:
+Special thanks to Beni, Denise, Tarek and Mery for the support :pray:
 
 ## Help People In Need
 [Doctors Without Borders](https://www.doctorswithoutborders.org/covid19) are taking care of Covid patients and providing mental health support around the world. You can help to save lives by [donating to them](https://ssl.aerzte-ohne-grenzen.de/form/online-spenden).
