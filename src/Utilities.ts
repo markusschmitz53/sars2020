@@ -26,7 +26,7 @@ export class Utilities {
     getProjection(_geoBounds) {
         let bottomLeft = _geoBounds[0],
             topRight = _geoBounds[1],
-            rotLong = -(topRight[0] + bottomLeft[0]) / 2,
+            rotLong = -(topRight[0] + bottomLeft[0]) / 3,
             centerX = (topRight[0] + bottomLeft[0]) / 2 + rotLong,
             centerY = (topRight[1] + bottomLeft[1]) / 2;
 
@@ -90,12 +90,13 @@ export class Utilities {
             properties.IdLandkreis = this.getCountyKey(properties.IdLandkreis);
 
             date = properties.Meldedatum.slice(0, 10);
-            if (date >= '2021/01/01') {
+
+            if (date >= '2021-01-01') {
                 continue;
             }
 
             // remove cases before the offical first case
-            if (date < '2020/01/27') {
+            if (date < '2020-01-27') {
                 properties.AnzahlFall = 0;
             }
 

@@ -13,19 +13,29 @@ body {
     font-size: 20pt;
     font-weight: 400;
     font-style: italic;
-    letter-spacing: 1px;
     background-color: #000;
     color: #FFF;
     text-align: center;
 
-    @media (max-width: 500px) {
+    @media (max-width: 1000px) {
+        font-size: 12pt;
+    }
+
+    .small {
         font-size: 14pt;
     }
-}
 
-body p {
-    line-height: 100vh;
-    margin-top: 0;
+    @media (max-width: 1000px) {
+        .small {
+            font-size: 10pt;
+            line-height: 15pt;
+        }
+    }
+
+    p {
+        line-height: 100vh;
+        margin-top: 0;
+    }
 }
 
 canvas {
@@ -55,11 +65,12 @@ canvas {
     cursor: help;
     color: #CCC;
 
-    @media (max-width: 500px) {
+    @media (max-width: 1000px) {
         padding: 0;
-        bottom: 0;
+        bottom: 5vh;
         text-align: center;
         width: 100%;
+        line-height: 15pt;
     }
 }
 
@@ -67,6 +78,11 @@ canvas {
   height: 100vh;
   line-height: 100vh;
   text-align: center;
+
+    @media (max-width: 1000px) {
+        width: 90vw;
+        margin: 0 auto;
+    }
 
     span {
         display: inline-block;
@@ -81,6 +97,11 @@ canvas {
     width: 100vw;
     color: #CCC;
 
+    @media (max-width: 1000px) {
+        padding: 0 5vw;
+        width: 90vw;
+    }
+
     a,
     a:visited {
         color: #CCC;
@@ -93,10 +114,6 @@ canvas {
 
 .message3 {
     cursor: pointer;
-}
-
-.small {
-    font-size: 14pt;
 }
 
 @keyframes flickerAnimation {

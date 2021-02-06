@@ -36,7 +36,7 @@ class App {
     private readonly CAMERA_MOVEMENT_SPEED = 0.4;
     private readonly COUNTY_POLLING_LIMIT = 10000;
     private readonly COUNTY_POLLING_INTERVAL = 50;
-    private readonly COVID_DATA_URL = 'https://opendata.arcgis.com/datasets/9644cad183f042e79fb6ad00eadc4ecf_0.geojson';
+    private readonly COVID_DATA_URL = 'https://sars.markusschmitz.info/covid_cases_2020.geojson';
     private readonly COUNTIES_DATA_URL = 'https://sars.markusschmitz.info/landkreise_deutschland.json';
 
     private readonly radius: number;
@@ -82,7 +82,7 @@ class App {
         this.colorGray = Color3.Gray();
         this.countyEdgeColor = new Color4(this.colorGray.r, this.colorGray.g, this.colorGray.b, 0.5);
         this.colorWhiteNonTransparent = new Color4(1, 1, 1, 1);
-        this.colorWhiteTransparent = new Color4(1, 1, 1, 0);
+        this.colorWhiteTransparent = new Color4(1, 1, 1, 0.25);
 
         this.particleDirection = new Vector3(0, 0, -10);
         this.increaseParticleSizeDate1 = Date.parse('2020-02-25');
@@ -226,7 +226,11 @@ class App {
             }, 10);
         }, 0);
         setTimeout(() => {
-            this.camera.spinTo('radius', 145, 20);
+            if (!window || window.innerWidth > 900) {
+                this.camera.spinTo('radius', 145, 20);
+            } else {
+                this.camera.spinTo('radius', 205, 20);
+            }
         }, 5000);
     }
 
@@ -343,8 +347,8 @@ class App {
 
         switch (_particleSize) {
             case 3:
-                particleSystem.minSize = 0.5;
-                particleSystem.maxSize = 0.6;
+                particleSystem.minSize = 0.6;
+                particleSystem.maxSize = 0.7;
                 break;
             case 2:
                 particleSystem.minSize = 0.3;
@@ -354,7 +358,11 @@ class App {
                 particleSystem.minSize = 0.15;
                 particleSystem.maxSize = 0.3;
         }
-        particleSystem.manualEmitCount = cases;
+
+        // add random delay before emitting particles so they don't pop up at once
+        setTimeout(() => {
+            particleSystem.manualEmitCount = cases;
+        }, (Math.random() * 100));
     }
 
     async drawCovidCases() {
