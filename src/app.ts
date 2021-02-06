@@ -135,7 +135,7 @@ class App {
 
         // run the main render loop
         this.engine.runRenderLoop(() => {
-            divFps.innerHTML = this.engine.getFps().toFixed() + ' fps';
+            //divFps.innerHTML = this.engine.getFps().toFixed() + ' fps';
             this.scene.render();
         });
     }
