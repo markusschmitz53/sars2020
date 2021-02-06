@@ -17,6 +17,10 @@ body {
     background-color: #000;
     color: #FFF;
     text-align: center;
+
+    @media (max-width: 500px) {
+        font-size: 14pt;
+    }
 }
 
 body p {
@@ -33,6 +37,12 @@ canvas {
     width: 99vh;
     display: block;
     z-index: 100;
+
+    @media (min-width: 0) and (orientation: portrait) {
+        width: 99vw;
+        height: 90vh;
+        left: 0;
+    }
 }
 
 #currentDay {
@@ -44,6 +54,13 @@ canvas {
     line-height: 20pt;
     cursor: help;
     color: #CCC;
+
+    @media (max-width: 500px) {
+        padding: 0;
+        bottom: 0;
+        text-align: center;
+        width: 100%;
+    }
 }
 
 .contentBox {

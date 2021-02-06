@@ -71,8 +71,6 @@ class App {
             throw new Error('global properties are undefined');
         }
 
-        this.checkMinimumWindowSize();
-
         console.info('%ccode and concept by Markus Schmitz. Check ' +
             'https://github.com/markusschmitz53/sars2020 for details about the project.', 'padding: 1rem; background: #000; color: #FFF');
         this.elapsedTimeForCountyPreparation = '0.0';
@@ -712,7 +710,6 @@ class App {
 
     addWindowListeners() {
         window.addEventListener('resize', () => {
-            this.checkMinimumWindowSize();
             if (this.engine) {
                 this.engine.resize();
             }
@@ -729,13 +726,6 @@ class App {
                     }
                 }
             });
-        }
-    }
-
-    checkMinimumWindowSize() {
-        if (window.innerWidth < 1000 || window.innerHeight < 650) {
-            alert('I\'m sorry but the minimum screen size is 1000 pixel wide and 650 pixel high to display this page.');
-            throw new Error('screen is too small');
         }
     }
 }
